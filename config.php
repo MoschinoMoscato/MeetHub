@@ -7,6 +7,10 @@ define('APP_VERSION', '1.0.0');
 define('MONGO_HOST', 'mongodb://10.10.13.2:27017');
 define('MONGO_DB', 'Meethub');
 
+//Session time
+ini_set('session.cookie_lifetime', 0);
+ini_set('session.gc_maxlifetime', 0);
+
 // Session
 session_start();
 require 'vendor/autoload.php';

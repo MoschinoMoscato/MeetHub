@@ -1,0 +1,11 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /api/
+    
+    # Se il file o directory esiste, servilo direttamente
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Altrimenti reindirizza tutto a index.php
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>

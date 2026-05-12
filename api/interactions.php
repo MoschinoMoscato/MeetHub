@@ -110,7 +110,7 @@
      "action"     => "like",
      "from_user_id" =>
      [
-      "$nin" => $db->interactions->distinct("to_user_id",
+      '$nin' => $db->interactions->distinct("to_user_id",
       [
        "from_user_id" => $current_user_id,
        "action"       => "like"

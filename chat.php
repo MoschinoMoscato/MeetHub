@@ -36,7 +36,7 @@
  {
   $liked_back_cursor = $db->interactions->find(
   [
-   "from_user_id" => ["$in" => $liked_user_ids],
+   "from_user_id" => ['$in' => $liked_user_ids],
    "to_user_id"   => $current_user_id,
    "action"       => "like"
   ]);
@@ -63,7 +63,7 @@
 
  if(!empty($matched_user_ids))
  {
-  $users_cursor = $db->users->find(["_id" => ["$in" => $matched_user_ids]]);
+  $users_cursor = $db->users->find(["_id" => ['$in' => $matched_user_ids]]);
 
   foreach($users_cursor as $u)
   {
@@ -344,36 +344,49 @@
     }
    }
 
-   // Carica i messaggi aggiornati via AJAX
-   async function loadMessages()
+   // Carica i messaggi aggiornati via XHR
+   function loadMessages()
    {
     if(!messages_area) return;
 
-    try
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "chat.php?chat=<?= $selected_chat_id ?>&ajax=1");
+
+    xhr.onreadystatechange = function()
     {
-     const response = await fetch("chat.php?chat=<?= $selected_chat_id ?>&ajax=1");
-     const html     = await response.text();
-     messages_area.innerHTML = html;
-     scrollToBottom();
-    }
-    catch(error)
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     if(xhr.status === 200)
+     {
+      messages_area.innerHTML = xhr.responseText;
+      scrollToBottom();
+     }
+     else
+     {
+      console.error("Errore caricamento messaggi:", xhr.status);
+     }
+    };
+
+    xhr.onerror = function()
     {
-     console.error("Errore caricamento messaggi:", error);
-    }
+     console.error("Errore caricamento messaggi: errore di rete");
+    };
+
+    xhr.send();
    }
 
    if(chat_form)
    {
-    chat_form.addEventListener("submit", async function(e)
+    chat_form.addEventListener("submit", function(e)
     {
      e.preventDefault();
 
-     const form_data = new FormData(chat_form);
-     const message   = form_data.get("message");
+     var form_data = new FormData(chat_form);
+     var message   = form_data.get("message");
 
      if(!message.trim()) return;
 
-     const submit_btn = chat_form.querySelector("button[type='submit']");
+     var submit_btn = chat_form.querySelector("button[type='submit']");
 
      if(submit_btn)
      {
@@ -381,33 +394,50 @@
       submit_btn.textContent = "Invio...";
      }
 
-     try
+     var xhr = new XMLHttpRequest();
+     xhr.open("POST", "chat.php");
+     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+     xhr.onreadystatechange = function()
      {
-      const response = await fetch("chat.php",
-      {
-       method:  "POST",
-       headers: { "X-Requested-With": "XMLHttpRequest" },
-       body:    form_data
-      });
+      if(xhr.readyState !== XMLHttpRequest.DONE) return;
 
-      const result = await response.json();
-
-      if(result.success)
+      if(submit_btn)
       {
-       message_input.value = "";
-       await loadMessages();
+       submit_btn.disabled    = false;
+       submit_btn.textContent = "Invia";
+      }
+      message_input.focus();
+
+      if(xhr.status === 200)
+      {
+       try
+       {
+        var result = JSON.parse(xhr.responseText);
+
+        if(result.success)
+        {
+         message_input.value = "";
+         loadMessages();
+        }
+        else
+        {
+         alert(result.error || "Errore durante l'invio");
+        }
+       }
+       catch(e)
+       {
+        alert("Errore di comunicazione");
+       }
       }
       else
       {
-       alert(result.error || "Errore durante l'invio");
+       console.error("Errore:", xhr.status);
+       alert("Errore di connessione");
       }
-     }
-     catch(error)
-     {
-      console.error("Errore:", error);
-      alert("Errore di connessione");
-     }
-     finally
+     };
+
+     xhr.onerror = function()
      {
       if(submit_btn)
       {
@@ -415,7 +445,10 @@
        submit_btn.textContent = "Invia";
       }
       message_input.focus();
-     }
+      alert("Errore di connessione");
+     };
+
+     xhr.send(form_data);
     });
    }
 

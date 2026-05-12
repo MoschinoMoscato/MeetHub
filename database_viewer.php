@@ -236,62 +236,83 @@
     if(e.target === this) closeConfirm();
    });
 
-   async function runDelete(action, collection, doc_id)
+   function runDelete(action, collection, doc_id)
    {
     var body = new FormData();
     body.append("action", action);
     body.append("collection", collection);
     if(doc_id) body.append("doc_id", doc_id);
 
-    try
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "database_viewer.php");
+
+    xhr.onreadystatechange = function()
     {
-     var res  = await fetch("database_viewer.php", { method: "POST", body: body });
-     var data = await res.json();
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
 
-     if(!data.success)
+     if(xhr.status === 200)
      {
-      showToast("Errore: " + (data.error || "sconosciuto"), "#dc2626");
-      return;
-     }
-
-     if(action === "delete_document")
-     {
-      var el = document.getElementById("doc-" + doc_id);
-
-      if(el)
+      try
       {
-       el.style.transition = "opacity 0.3s";
-       el.style.opacity    = "0";
-       setTimeout(function(){ el.remove(); }, 300);
+       var data = JSON.parse(xhr.responseText);
+
+       if(!data.success)
+       {
+        showToast("Errore: " + (data.error || "sconosciuto"), "#dc2626");
+        return;
+       }
+
+       if(action === "delete_document")
+       {
+        var el = document.getElementById("doc-" + doc_id);
+
+        if(el)
+        {
+         el.style.transition = "opacity 0.3s";
+         el.style.opacity    = "0";
+         setTimeout(function(){ el.remove(); }, 300);
+        }
+
+        updateCount(collection, -1);
+        showToast("Documento eliminato", "#16a34a");
+       }
+       else if(action === "clear_collection")
+       {
+        document.getElementById("docs-" + collection).innerHTML = "";
+        setCount(collection, 0);
+        showToast("Collection svuotata", "#16a34a");
+       }
+       else if(action === "delete_collection")
+       {
+        var card = document.getElementById("col-" + collection);
+
+        if(card)
+        {
+         card.style.transition = "opacity 0.3s";
+         card.style.opacity    = "0";
+         setTimeout(function(){ card.remove(); }, 300);
+        }
+
+        showToast("Collection eliminata", "#16a34a");
+       }
       }
-
-      updateCount(collection, -1);
-      showToast("Documento eliminato", "#16a34a");
-     }
-     else if(action === "clear_collection")
-     {
-      document.getElementById("docs-" + collection).innerHTML = "";
-      setCount(collection, 0);
-      showToast("Collection svuotata", "#16a34a");
-     }
-     else if(action === "delete_collection")
-     {
-      var card = document.getElementById("col-" + collection);
-
-      if(card)
+      catch(e)
       {
-       card.style.transition = "opacity 0.3s";
-       card.style.opacity    = "0";
-       setTimeout(function(){ card.remove(); }, 300);
+       showToast("Errore di comunicazione", "#dc2626");
       }
-
-      showToast("Collection eliminata", "#16a34a");
      }
-    }
-    catch(err)
+     else
+     {
+      showToast("Errore di rete", "#dc2626");
+     }
+    };
+
+    xhr.onerror = function()
     {
      showToast("Errore di rete", "#dc2626");
-    }
+    };
+
+    xhr.send(body);
    }
 
    function updateCount(collection, delta)

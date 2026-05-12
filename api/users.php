@@ -37,13 +37,13 @@
     // Query base: esclude se stesso e richiede profilo completo
     $query =
     [
-     "_id"              => ["$ne" => $current_user_id],
+     "_id"              => ['$ne' => $current_user_id],
      "profile_complete" => true
     ];
 
     if(!empty($interests))
     {
-     $query["interests"] = ["$in" => $interests];
+     $query["interests"] = ['$in' => $interests];
     }
 
     // Filtro per età dalle preferenze utente
@@ -54,14 +54,14 @@
      $min_birth = (clone $today)->modify("-" . ($preferences->max_age ?? 99) . " years");
      $query["birthdate"] =
      [
-      "$lte" => $max_birth->format("Y-m-d"),
-      "$gte" => $min_birth->format("Y-m-d")
+      '$lte' => $max_birth->format("Y-m-d"),
+      '$gte' => $min_birth->format("Y-m-d")
      ];
     }
 
     if(!empty($preferences->gender) && is_array($preferences->gender))
     {
-     $query["gender"] = ["$in" => $preferences->gender];
+     $query["gender"] = ['$in' => $preferences->gender];
     }
 
     // Esclude i profili già visti (like o reject)
@@ -69,11 +69,11 @@
 
     if(!empty($seen))
     {
-     if(!isset($query["_id"]["$nin"]))
+     if(!isset($query["_id"]['$nin']))
      {
-      $query["_id"]["$nin"] = [];
+      $query["_id"]['$nin'] = [];
      }
-     $query["_id"]["$nin"] = array_merge($query["_id"]["$nin"], $seen);
+     $query["_id"]['$nin'] = array_merge($query["_id"]['$nin'], $seen);
     }
 
     $total = $db->users->countDocuments($query);// Conta totale per la paginazione

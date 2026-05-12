@@ -313,24 +313,24 @@
  // Query principale per recuperare i profili
  $query =
  [
-  "_id"              => ["$ne" => $current_user_id],
+  "_id"              => ['$ne' => $current_user_id],
   "profile_complete" => true,
-  "birthdate"        => ["$gte" => $min_birthdate, "$lte" => $max_birthdate]
+  "birthdate"        => ['$gte' => $min_birthdate, '$lte' => $max_birthdate]
  ];
 
  if(!empty($already_seen_ids))
  {
-  $query["_id"]["$nin"] = $already_seen_ids;
+  $query["_id"]['$nin'] = $already_seen_ids;
  }
 
  if(!empty($preferred_genders))
  {
-  $query["gender"] = ["$in" => $preferred_genders];
+  $query["gender"] = ['$in' => $preferred_genders];
  }
 
  if(!empty($selected_interest_filters))
  {
-  $query["interests"] = ["$in" => $selected_interest_filters];
+  $query["interests"] = ['$in' => $selected_interest_filters];
  }
 
  $profiles_cursor          = $db->users->find($query, ["limit" => 12]);
@@ -342,23 +342,23 @@
  {
   $fallback_query =
   [
-   "_id"      => ["$ne" => $current_user_id],
-   "birthdate" => ["$gte" => $min_birthdate, "$lte" => $max_birthdate]
+   "_id"      => ['$ne' => $current_user_id],
+   "birthdate" => ['$gte' => $min_birthdate, '$lte' => $max_birthdate]
   ];
 
   if(!empty($already_seen_ids))
   {
-   $fallback_query["_id"]["$nin"] = $already_seen_ids;
+   $fallback_query["_id"]['$nin'] = $already_seen_ids;
   }
 
   if(!empty($preferred_genders))
   {
-   $fallback_query["gender"] = ["$in" => $preferred_genders];
+   $fallback_query["gender"] = ['$in' => $preferred_genders];
   }
 
   if(!empty($selected_interest_filters))
   {
-   $fallback_query["interests"] = ["$in" => $selected_interest_filters];
+   $fallback_query["interests"] = ['$in' => $selected_interest_filters];
   }
 
   $fallback_cursor = $db->users->find($fallback_query, ["limit" => 12]);
@@ -628,130 +628,174 @@
     }, 5000);
    }
 
-   // Esegue un'azione (like/reject) via AJAX
-   async function performAction(user_id, action, close_modal_after = true)
+   // Esegue un'azione (like/reject) via XHR
+   function performAction(user_id, action, close_modal_after)
    {
-    try
+    if(close_modal_after === undefined) close_modal_after = true;
+
+    var form_data = new FormData();
+    form_data.append("target_user_id", user_id);
+    form_data.append("action", action);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "discover.php");
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+    xhr.onreadystatechange = function()
     {
-     const form_data = new FormData();
-     form_data.append("target_user_id", user_id);
-     form_data.append("action", action);
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
 
-     const response = await fetch("discover.php",
+     if(xhr.status === 200)
      {
-      method:  "POST",
-      headers: { "X-Requested-With": "XMLHttpRequest" },
-      body:    form_data
-     });
+      try
+      {
+       var result = JSON.parse(xhr.responseText);
 
-     const result = await response.json();
-
-     if(result.success)
-     {
-      if(result.match) showMatchNotification(user_id);
-      if(close_modal_after) closeModal();
-      location.reload();
+       if(result.success)
+       {
+        if(result.match) showMatchNotification(user_id);
+        if(close_modal_after) closeModal();
+        location.reload();
+       }
+       else
+       {
+        alert(result.error || "Errore durante l'operazione");
+       }
+      }
+      catch(e)
+      {
+       alert("Errore di comunicazione");
+      }
      }
      else
      {
-      alert(result.error || "Errore durante l'operazione");
+      alert("Errore di connessione");
      }
-    }
-    catch(error)
+    };
+
+    xhr.onerror = function()
     {
-     console.error("Errore:", error);
      alert("Errore di connessione");
-    }
+    };
+
+    xhr.send(form_data);
    }
 
    // Apre il modal con i dettagli del profilo
-   async function showProfileDetails(user_id)
+   function showProfileDetails(user_id)
    {
-    const modal         = document.getElementById("profile-modal");
-    const modal_content = document.getElementById("modal-content");
+    var modal         = document.getElementById("profile-modal");
+    var modal_content = document.getElementById("modal-content");
     current_modal_user_id = user_id;
 
     modal_content.innerHTML = "<div style=\"text-align:center; padding:2rem;\">⏳ Caricamento profilo...</div>";
     modal.style.display = "flex";
 
-    try
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "discover.php?get_user_details=1&id=" + user_id);
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+    xhr.onreadystatechange = function()
     {
-     const response = await fetch("discover.php?get_user_details=1&id=" + user_id,
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     if(xhr.status === 200)
      {
-      headers: { "X-Requested-With": "XMLHttpRequest" }
-     });
+      try
+      {
+       var result = JSON.parse(xhr.responseText);
 
-     const result = await response.json();
+       if(result.success && result.data)
+       {
+        var user = result.data;
 
-     if(result.success && result.data)
-     {
-      const user = result.data;
-
-      modal_content.innerHTML = `
-       <div class="profile-detail">
-        <div class="profile-detail-avatar">
-         ${user.profile_image ?
-          `<img src="${escapeHtml(user.profile_image)}" alt="${escapeHtml(user.name)}">` :
-          "<div>👤</div>"
-         }
-        </div>
-        <div class="profile-detail-name">${escapeHtml(user.name)}${user.age ? `, ${user.age}` : ""}</div>
-        <div class="profile-detail-meta">
-         ${user.city ? `📍 ${escapeHtml(user.city)}` : ""}
-         ${user.job ? ` • 💼 ${escapeHtml(user.job)}` : ""}
-         ${user.height ? ` • 📏 ${user.height} cm` : ""}
-        </div>
-        ${user.bio ? `
-        <div class="profile-detail-bio">
-         <strong>📝 Chi sono</strong><br>
-         ${escapeHtml(user.bio).replace(/\n/g, "<br>")}
-        </div>
-        ` : ""}
-        ${user.interests && user.interests.length > 0 ? `
-        <div class="profile-detail-section">
-         <h4>🎯 Interessi</h4>
-         <div class="tags-container">
-          ${user.interests.map(i => `<span class="tag">${escapeHtml(i)}</span>`).join("")}
+        modal_content.innerHTML = `
+         <div class="profile-detail">
+          <div class="profile-detail-avatar">
+           ${user.profile_image ?
+            `<img src="${escapeHtml(user.profile_image)}" alt="${escapeHtml(user.name)}">` :
+            "<div>👤</div>"
+           }
+          </div>
+          <div class="profile-detail-name">${escapeHtml(user.name)}${user.age ? `, ${user.age}` : ""}</div>
+          <div class="profile-detail-meta">
+           ${user.city ? `📍 ${escapeHtml(user.city)}` : ""}
+           ${user.job ? ` • 💼 ${escapeHtml(user.job)}` : ""}
+           ${user.height ? ` • 📏 ${user.height} cm` : ""}
+          </div>
+          ${user.bio ? `
+          <div class="profile-detail-bio">
+           <strong>📝 Chi sono</strong><br>
+           ${escapeHtml(user.bio).replace(/\n/g, "<br>")}
+          </div>
+          ` : ""}
+          ${user.interests && user.interests.length > 0 ? `
+          <div class="profile-detail-section">
+           <h4>🎯 Interessi</h4>
+           <div class="tags-container">
+            ${user.interests.map(i => `<span class="tag">${escapeHtml(i)}</span>`).join("")}
+           </div>
+          </div>
+          ` : ""}
+          ${user.traits && user.traits.length > 0 ? `
+          <div class="profile-detail-section">
+           <h4>✨ Qualità</h4>
+           <div class="tags-container">
+            ${user.traits.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}
+           </div>
+          </div>
+          ` : ""}
          </div>
+        `;
+
+        var like_btn   = document.getElementById("modal-like-btn");
+        var reject_btn = document.getElementById("modal-reject-btn");
+
+        var new_like_btn   = like_btn.cloneNode(true);
+        var new_reject_btn = reject_btn.cloneNode(true);
+        like_btn.parentNode.replaceChild(new_like_btn, like_btn);
+        reject_btn.parentNode.replaceChild(new_reject_btn, reject_btn);
+
+        new_like_btn.onclick   = function() { performAction(user_id, "like",   true); };
+        new_reject_btn.onclick = function() { performAction(user_id, "reject", true); };
+       }
+       else
+       {
+        modal_content.innerHTML = "<div style=\"text-align:center; padding:2rem; color:var(--danger);\">❌ " + (result.error || "Errore nel caricamento del profilo") + "</div>";
+       }
+      }
+      catch(e)
+      {
+       modal_content.innerHTML = `
+        <div style="text-align:center; padding:2rem; color:var(--danger);">
+         ❌ Errore di connessione<br>
+         <small style="font-size:0.8rem;">Ricarica la pagina e riprova</small>
         </div>
-        ` : ""}
-        ${user.traits && user.traits.length > 0 ? `
-        <div class="profile-detail-section">
-         <h4>✨ Qualità</h4>
-         <div class="tags-container">
-          ${user.traits.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}
-         </div>
-        </div>
-        ` : ""}
-       </div>
-      `;
-
-      const like_btn   = document.getElementById("modal-like-btn");
-      const reject_btn = document.getElementById("modal-reject-btn");
-
-      const new_like_btn   = like_btn.cloneNode(true);
-      const new_reject_btn = reject_btn.cloneNode(true);
-      like_btn.parentNode.replaceChild(new_like_btn, like_btn);
-      reject_btn.parentNode.replaceChild(new_reject_btn, reject_btn);
-
-      new_like_btn.onclick   = () => performAction(user_id, "like", true);
-      new_reject_btn.onclick = () => performAction(user_id, "reject", true);
+       `;
+      }
      }
      else
      {
-      modal_content.innerHTML = "<div style=\"text-align:center; padding:2rem; color:var(--danger);\">❌ " + (result.error || "Errore nel caricamento del profilo") + "</div>";
+      modal_content.innerHTML = `
+       <div style="text-align:center; padding:2rem; color:var(--danger);">
+        ❌ Errore di connessione<br>
+        <small style="font-size:0.8rem;">Ricarica la pagina e riprova</small>
+       </div>
+      `;
      }
-    }
-    catch(error)
+    };
+
+    xhr.onerror = function()
     {
-     console.error("Errore:", error);
      modal_content.innerHTML = `
       <div style="text-align:center; padding:2rem; color:var(--danger);">
        ❌ Errore di connessione<br>
        <small style="font-size:0.8rem;">Ricarica la pagina e riprova</small>
       </div>
      `;
-    }
+    };
+
+    xhr.send();
    }
 
    function closeModal()
@@ -771,12 +815,12 @@
    // Intercetta l'invio dei form di like/reject per usare AJAX
    document.querySelectorAll(".action-form").forEach(form =>
    {
-    form.addEventListener("submit", async (e) =>
+    form.addEventListener("submit", function(e)
     {
      e.preventDefault();
-     const user_id = form.dataset.userId;
-     const action  = form.dataset.action;
-     await performAction(user_id, action, false);
+     var user_id = form.dataset.userId;
+     var action  = form.dataset.action;
+     performAction(user_id, action, false);
     });
    });
 

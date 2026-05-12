@@ -38,11 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pref_max_age    = (int)($_POST['pref_max_age'] ?? 50);
     $pref_max_dist   = (int)($_POST['pref_max_dist'] ?? 50);
 
-    // DEBUG: log per vedere cosa arriva dal form
-    error_log("INTERESTS ricevuti: " . print_r($interests, true));
-    error_log("TRAITS ricevuti: " . print_r($traits, true));
-    error_log("PREF_GENDER ricevuti: " . print_r($pref_gender, true));
-
     // Upload immagine
     if (isset($_FILES['profile_image']) && ($_FILES['profile_image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
         $uploadError = $_FILES['profile_image']['error'] ?? UPLOAD_ERR_NO_FILE;

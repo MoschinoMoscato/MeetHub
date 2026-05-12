@@ -57,18 +57,18 @@
 
     <!--- Hero Side --->
     <div class="auth-hero">
-     <div class="auth-hero-tag">✨ Trova la tua metà</div>
+     <div class="auth-hero-tag">Trova la tua metà</div>
      <h1>Il tuo<br>prossimo<br><span style="color:var(--coral)">grande amore</span><br>è qui.</h1>
      <p style="margin-top:1.5rem">Connettiti con persone reali, crea connessioni vere. MeetHub è il posto dove le storie d'amore iniziano.</p>
 
      <div class="floating-cards">
       <div class="mini-profile-card">
-       <div class="mini-avatar">👩</div>
+       <div class="mini-avatar">S</div>
        <div class="name">Sofia, 26</div>
        <div class="age">Milano</div>
       </div>
       <div class="mini-profile-card" style="margin-top:2rem">
-       <div class="mini-avatar">👨</div>
+       <div class="mini-avatar">M</div>
        <div class="name">Marco, 29</div>
        <div class="age">Roma</div>
       </div>
@@ -80,11 +80,11 @@
      <div style="max-width:420px; width:100%">
       <div style="font-family:'Playfair Display',serif; font-size:2rem; font-weight:900; background:linear-gradient(135deg,var(--coral),var(--gold)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-bottom:2rem">MeetHub</div>
 
-      <h2>Bentornato 👋</h2>
+      <h2>Bentornato</h2>
       <p class="subtitle">Accedi al tuo account per continuare</p>
 
       <?php if($error !== ""){ ?>
-       <div class="alert alert-danger">⚠️ <?= htmlspecialchars($error) ?></div>
+       <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
       <?php } ?>
 
       <form method="POST">

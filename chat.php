@@ -230,21 +230,16 @@
  </head>
 
  <body>
+  <?php require "header.php"; ?>
   <div class="chat-layout">
    <aside class="chat-sidebar">
     <div class="chat-sidebar-header">
      <h3>I tuoi match</h3>
-     <p class="text-muted mt-1" style="font-size:0.85rem">
-      <?= htmlspecialchars($current_user->name ?? "Utente") ?>, qui trovi chi ha messo cuore reciproco.
-     </p>
-     <div class="mt-2">
-      <a href="discover.php" class="btn btn-sm btn-ghost">Torna a Discover</a>
-     </div>
+     <p class="text-muted mt-1" style="font-size:0.85rem">Conversazioni attive</p>
     </div>
 
     <?php if(count($matched_users) === 0){ ?>
      <div class="chat-empty">
-      <div style="font-size:2rem">💔</div>
       <p>Nessun match ancora</p>
      </div>
     <?php } else { ?>
@@ -254,7 +249,7 @@
         <?php if(!empty($match_user->profile_image)){ ?>
          <img class="avatar-image" src="<?= htmlspecialchars($match_user->profile_image) ?>" alt="Foto di <?= htmlspecialchars($match_user->name ?? "Utente") ?>">
         <?php } else { ?>
-         👤
+         <?= strtoupper(substr($match_user->name ?? "?", 0, 1)) ?>
         <?php } ?>
        </div>
        <div class="chat-contact-info">
@@ -275,7 +270,7 @@
        <?php if(!empty($selected_user->profile_image)){ ?>
         <img class="avatar-image" src="<?= htmlspecialchars($selected_user->profile_image) ?>" alt="Foto di <?= htmlspecialchars($selected_user->name ?? "Utente") ?>">
        <?php } else { ?>
-        👤
+        <?= strtoupper(substr($selected_user->name ?? "?", 0, 1)) ?>
        <?php } ?>
       </div>
       <div>
@@ -292,7 +287,6 @@
 
       <?php if(count($messages) === 0){ ?>
        <div class="chat-empty">
-        <div style="font-size:2rem">💬</div>
         <p>Inizia la conversazione!</p>
        </div>
       <?php } else { ?>
@@ -322,7 +316,6 @@
      </form>
     <?php } else { ?>
      <div class="chat-empty">
-      <div style="font-size:2rem">❤️</div>
       <h3>Seleziona un match</h3>
       <p>Apri una chat dalla colonna di sinistra.</p>
      </div>
@@ -335,16 +328,20 @@
    const messages_area = document.getElementById("messages-area");
    const message_input = document.getElementById("message-input");
 
-   // Scrolla in fondo all'area messaggi
-   function scrollToBottom()
+   let refresh_interval = null;
+
+   // Sessione scaduta: ferma il polling e vai al login
+   function handleSessionExpired()
    {
-    if(messages_area)
-    {
-     messages_area.scrollTop = messages_area.scrollHeight;
-    }
+    if(refresh_interval) { clearInterval(refresh_interval); refresh_interval = null; }
+    window.location.href = "index.php";
    }
 
-   // Carica i messaggi aggiornati via XHR
+   function scrollToBottom()
+   {
+    if(messages_area) messages_area.scrollTop = messages_area.scrollHeight;
+   }
+
    function loadMessages()
    {
     if(!messages_area) return;
@@ -356,20 +353,17 @@
     {
      if(xhr.readyState !== XMLHttpRequest.DONE) return;
 
+     if(xhr.status === 401)
+     {
+      handleSessionExpired();
+      return;
+     }
+
      if(xhr.status === 200)
      {
       messages_area.innerHTML = xhr.responseText;
       scrollToBottom();
      }
-     else
-     {
-      console.error("Errore caricamento messaggi:", xhr.status);
-     }
-    };
-
-    xhr.onerror = function()
-    {
-     console.error("Errore caricamento messaggi: errore di rete");
     };
 
     xhr.send();
@@ -401,6 +395,12 @@
      xhr.onreadystatechange = function()
      {
       if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+      if(xhr.status === 401)
+      {
+       handleSessionExpired();
+       return;
+      }
 
       if(submit_btn)
       {
@@ -452,16 +452,14 @@
     });
    }
 
-   // Scroll in fondo al caricamento iniziale
    if(messages_area) scrollToBottom();
 
-   // Ricarica i messaggi ogni secondo quando la finestra è in primo piano
-   let refresh_interval = setInterval(() =>
+   refresh_interval = setInterval(function()
    {
     if(document.hasFocus() && messages_area) loadMessages();
    }, 1000);
 
-   window.addEventListener("beforeunload", () =>
+   window.addEventListener("beforeunload", function()
    {
     if(refresh_interval) clearInterval(refresh_interval);
    });

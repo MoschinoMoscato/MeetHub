@@ -92,7 +92,7 @@
    <div class="auth-container">
 
     <div class="auth-hero">
-     <div class="auth-hero-tag">🚀 Inizia ora</div>
+     <div class="auth-hero-tag">Inizia ora</div>
      <h1>Crea il<br>tuo<br><span style="color:var(--coral)">profilo</span><br>perfetto.</h1>
      <p style="margin-top:1.5rem">Bastano pochi minuti per iniziare. Scegli chi sei, cosa cerchi, e lascia che MeetHub faccia il resto.</p>
     </div>
@@ -101,11 +101,11 @@
      <div style="max-width:460px; width:100%">
       <a href="index.php" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna al login</a>
 
-      <h2>Registrati 🎉</h2>
+      <h2>Registrati</h2>
       <p class="subtitle">Unisciti a migliaia di persone che cercano amore</p>
 
       <?php if($error !== ""){ ?>
-       <div class="alert alert-danger">⚠️ <?= htmlspecialchars($error) ?></div>
+       <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
       <?php } ?>
 
       <form method="POST">

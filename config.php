@@ -51,6 +51,18 @@
  {
   if(!isset($_SESSION["user_id"]))
   {
+   $is_ajax = (isset($_GET["ajax"]) && $_GET["ajax"] == 1)
+           || (isset($_SERVER["HTTP_X_REQUESTED_WITH"])
+               && strtolower($_SERVER["HTTP_X_REQUESTED_WITH"]) === "xmlhttprequest");
+
+   if($is_ajax)
+   {
+    http_response_code(401);
+    header("Content-Type: application/json");
+    echo json_encode(["error" => "session_expired"]);
+    exit;
+   }
+
    header("Location: index.php");
    exit;
   }

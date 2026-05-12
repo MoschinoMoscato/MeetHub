@@ -3,7 +3,14 @@
  requireLogin();
 
  $user  = currentUser();
- $error = "";// Variabile per eventuali messaggi di errore
+ $error = "";
+
+ // L'onboarding è solo per il primo accesso — chi ha già il profilo va su profile.php
+ if(!empty($user->profile_complete) && $user->profile_complete === true)
+ {
+  header("Location: profile.php");
+  exit;
+ }
 
  if($_SERVER["REQUEST_METHOD"] === "POST")
  {
@@ -101,44 +108,43 @@
 
   if(!$error)
   {
-   // Aggiornamento del profilo nel database
-   $update_result = $db->users->updateOne(["_id" => $id],
-   [
-    '$set' =>
-    [
-     "bio"              => $bio,
-     "city"             => $city,
-     "height"           => $height,
-     "job"              => $job,
-     "profile_image"    => $profile_image,
-     "interests"        => $interests,
-     "traits"           => $traits,
-     "preferences"      =>
-     [
-      "gender"   => $pref_gender,
-      "min_age"  => $pref_min_age,
-      "max_age"  => $pref_max_age,
-      "max_dist" => $pref_max_dist
-     ],
-     "profile_complete" => true,
-     "updated_at"       => new MongoDB\BSON\UTCDateTime()
-    ]
-   ]);
-
-   if($update_result->getModifiedCount() > 0 || $update_result->getUpsertedCount() > 0)
+   try
    {
+    $db->users->updateOne(["_id" => $id],
+    [
+     '$set' =>
+     [
+      "bio"              => $bio,
+      "city"             => $city,
+      "height"           => $height > 0 ? $height : null,
+      "job"              => $job,
+      "profile_image"    => $profile_image,
+      "interests"        => $interests,
+      "traits"           => $traits,
+      "preferences"      =>
+      [
+       "gender"   => $pref_gender,
+       "min_age"  => $pref_min_age,
+       "max_age"  => $pref_max_age,
+       "max_dist" => $pref_max_dist
+      ],
+      "profile_complete" => true,
+      "updated_at"       => new MongoDB\BSON\UTCDateTime()
+     ]
+    ]);
+
     header("Location: discover.php");
     exit;
    }
-   else
+   catch(Throwable $e)
    {
-    $error = "Nessuna modifica salvata. Riprova.";
+    $error = "Errore: " . htmlspecialchars($e->getMessage());
    }
   }
  }
 
- $interest_options = ["🎵 Musica", "🎮 Gaming", "🍕 Cucina", "✈️ Viaggi", "📚 Lettura", "🎨 Arte", "🏋️ Sport", "🌿 Natura", "🐶 Animali", "🎬 Cinema", "🍷 Vino", "🧘 Yoga", "💃 Danza", "🎭 Teatro", "🎸 Concerti", "🏄 Surf"];
- $trait_options    = ["😄 Sorridente", "🤓 Intellettuale", "🦋 Avventuroso", "💖 Romantico", "😂 Divertente", "🎯 Ambizioso", "😌 Tranquillo", "🔥 Passionale", "🌸 Sensibile", "🦁 Determinato", "🌟 Ottimista", "🎭 Creativo"];
+ $interest_options = ["Musica", "Gaming", "Cucina", "Viaggi", "Lettura", "Arte", "Sport", "Natura", "Animali", "Cinema", "Vino", "Yoga", "Danza", "Teatro", "Concerti", "Surf"];
+ $trait_options    = ["Sorridente", "Intellettuale", "Avventuroso", "Romantico", "Divertente", "Ambizioso", "Tranquillo", "Passionale", "Sensibile", "Determinato", "Ottimista", "Creativo"];
 
  // Recupera i valori esistenti per pre-compilare i chip
  $existing_interests  = [];
@@ -191,18 +197,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MeetHub – Completa il tuo profilo</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=<?= filemtime('style.css') ?>">
  </head>
 
  <body>
+  <?php require "header.php"; ?>
   <div class="page-wrapper">
    <div class="onboarding-container">
     <div class="onboarding-card">
 
      <div style="text-align:center; margin-bottom:2rem">
-      <div style="font-family:'Playfair Display',serif; font-size:1.8rem; font-weight:900; background:linear-gradient(135deg,var(--coral),var(--gold)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text">MeetHub</div>
-      <h2 style="margin-top:0.5rem">Crea il tuo profilo ✨</h2>
-      <p class="text-muted" style="font-size:0.9rem">Raccontaci di te per trovare persone compatibili</p>
+      <h2>Crea il tuo profilo</h2>
+      <p class="text-muted mt-1" style="font-size:0.9rem">Raccontaci di te per trovare persone compatibili</p>
      </div>
 
      <div class="step-progress" id="stepProgress">
@@ -216,11 +222,11 @@
       <div class="alert alert-danger mb-2"><?= htmlspecialchars($error) ?></div>
      <?php } ?>
 
-     <form method="POST" id="onboardingForm" enctype="multipart/form-data">
+     <form method="POST" id="onboardingForm" enctype="multipart/form-data" novalidate>
 
       <!--- Step 0: Chi sei --->
       <div class="step" id="step0">
-       <h3 class="mb-2">👤 Chi sei?</h3>
+       <h3 class="mb-2">Chi sei?</h3>
        <div class="form-group">
         <label>Immagine profilo</label>
         <input type="file" name="profile_image" accept=".jpg,.jpeg,.png,.webp,.gif,image/*">
@@ -238,7 +244,7 @@
        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem">
         <div class="form-group">
          <label>Altezza (cm)</label>
-         <input type="number" name="height" placeholder="170" min="140" max="220" value="<?= htmlspecialchars($user->height ?? "") ?>">
+         <input type="number" name="height" placeholder="170" min="140" max="220" value="<?= isset($user->height) && (int)$user->height >= 140 && (int)$user->height <= 220 ? (int)$user->height : "" ?>">
         </div>
         <div class="form-group">
          <label>Professione</label>
@@ -254,7 +260,7 @@
 
       <!--- Step 1: Interessi --->
       <div class="step hidden" id="step1">
-       <h3 class="mb-1">🎯 I tuoi interessi</h3>
+       <h3 class="mb-1">I tuoi interessi</h3>
        <p class="text-muted mb-2" style="font-size:0.88rem">Seleziona almeno 3 passioni che ti rappresentano</p>
        <div class="chips-grid" id="interests-grid">
         <?php foreach($interest_options as $i){ ?>
@@ -270,7 +276,7 @@
 
       <!--- Step 2: Tratti --->
       <div class="step hidden" id="step2">
-       <h3 class="mb-1">✨ Come ti descriveresti?</h3>
+       <h3 class="mb-1">Come ti descriveresti?</h3>
        <p class="text-muted mb-2" style="font-size:0.88rem">Scegli le caratteristiche che ti descrivono meglio</p>
        <div class="chips-grid" id="traits-grid">
         <?php foreach($trait_options as $t){ ?>
@@ -286,16 +292,16 @@
 
       <!--- Step 3: Preferenze --->
       <div class="step hidden" id="step3">
-       <h3 class="mb-1">💕 Cosa cerchi?</h3>
+       <h3 class="mb-1">Cosa cerchi?</h3>
        <p class="text-muted mb-2" style="font-size:0.88rem">Imposta le tue preferenze di ricerca</p>
 
        <div class="form-group">
         <label>Genere preferito</label>
         <div class="chips-grid" id="pref-gender-grid">
-         <button type="button" class="chip <?= in_array("uomo", $existing_pref_gender) ? "selected" : "" ?>" data-value="uomo" onclick="togglePrefGender(this)">👨 Uomo</button>
-         <button type="button" class="chip <?= in_array("donna", $existing_pref_gender) ? "selected" : "" ?>" data-value="donna" onclick="togglePrefGender(this)">👩 Donna</button>
-         <button type="button" class="chip <?= in_array("non-binario", $existing_pref_gender) ? "selected" : "" ?>" data-value="non-binario" onclick="togglePrefGender(this)">🌈 Non-binario</button>
-         <button type="button" class="chip <?= in_array("altro", $existing_pref_gender) ? "selected" : "" ?>" data-value="altro" onclick="togglePrefGender(this)">🎭 Altro</button>
+         <button type="button" class="chip <?= in_array("uomo", $existing_pref_gender) ? "selected" : "" ?>" data-value="uomo" onclick="togglePrefGender(this)">Uomo</button>
+         <button type="button" class="chip <?= in_array("donna", $existing_pref_gender) ? "selected" : "" ?>" data-value="donna" onclick="togglePrefGender(this)">Donna</button>
+         <button type="button" class="chip <?= in_array("non-binario", $existing_pref_gender) ? "selected" : "" ?>" data-value="non-binario" onclick="togglePrefGender(this)">Non-binario</button>
+         <button type="button" class="chip <?= in_array("altro", $existing_pref_gender) ? "selected" : "" ?>" data-value="altro" onclick="togglePrefGender(this)">Altro</button>
         </div>
         <div id="pref-gender-container"></div>
        </div>
@@ -321,7 +327,7 @@
 
        <div style="display:flex; gap:1rem; margin-top:1.5rem">
         <button type="button" class="btn btn-ghost" onclick="goStep(2)">← Indietro</button>
-        <button type="submit" class="btn btn-primary" style="flex:1">🚀 Completa Profilo</button>
+        <button type="submit" class="btn btn-primary" style="flex:1">Completa Profilo</button>
        </div>
       </div>
 

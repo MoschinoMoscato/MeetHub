@@ -290,7 +290,7 @@
  $pref_max_age  = isset($preferences->max_age)  ? (int)$preferences->max_age  : 99;
  $pref_max_dist = isset($preferences->max_dist) ? (int)$preferences->max_dist : 0;
 
- $interest_options         = ["🎵 Musica", "🎮 Gaming", "🍕 Cucina", "✈️ Viaggi", "📚 Lettura", "🎨 Arte", "🏋️ Sport", "🌿 Natura", "🐶 Animali", "🎬 Cinema", "🍷 Vino", "🧘 Yoga", "💃 Danza", "🎭 Teatro", "🎸 Concerti", "🏄 Surf"];
+ $interest_options         = ["Musica", "Gaming", "Cucina", "Viaggi", "Lettura", "Arte", "Sport", "Natura", "Animali", "Cinema", "Vino", "Yoga", "Danza", "Teatro", "Concerti", "Surf"];
  $selected_interest_filters = $_GET["interests"] ?? [];
 
  if(!is_array($selected_interest_filters))
@@ -333,38 +333,23 @@
   $query["interests"] = ['$in' => $selected_interest_filters];
  }
 
- $profiles_cursor          = $db->users->find($query, ["limit" => 12]);
- $profiles                 = iterator_to_array($profiles_cursor, false);
- $showing_incomplete_profiles = false;
+ // Filtro bidirezionale: il profilo deve essere potenzialmente interessato al genere dell'utente corrente.
+ // Un array preferences.gender vuoto o assente = nessuna preferenza = compatibile con chiunque.
+ $current_user_gender = (string)($user->gender ?? "");
 
- // Fallback: mostra anche profili incompleti se non ci sono risultati
- if(count($profiles) === 0)
+ if($current_user_gender !== "")
  {
-  $fallback_query =
+  $query['$or'] =
   [
-   "_id"      => ['$ne' => $current_user_id],
-   "birthdate" => ['$gte' => $min_birthdate, '$lte' => $max_birthdate]
+   ["preferences.gender" => ['$size'   => 0]],       // nessuna preferenza di genere impostata
+   ["preferences.gender" => ['$exists' => false]],   // campo assente (utenti vecchi)
+   ["preferences.gender" => $current_user_gender]    // il mio genere è tra quelli che cercano
   ];
-
-  if(!empty($already_seen_ids))
-  {
-   $fallback_query["_id"]['$nin'] = $already_seen_ids;
-  }
-
-  if(!empty($preferred_genders))
-  {
-   $fallback_query["gender"] = ['$in' => $preferred_genders];
-  }
-
-  if(!empty($selected_interest_filters))
-  {
-   $fallback_query["interests"] = ['$in' => $selected_interest_filters];
-  }
-
-  $fallback_cursor = $db->users->find($fallback_query, ["limit" => 12]);
-  $profiles        = iterator_to_array($fallback_cursor, false);
-  $showing_incomplete_profiles = count($profiles) > 0;
  }
+
+ $profiles_cursor = $db->users->find($query, ["limit" => 12]);
+ $profiles        = iterator_to_array($profiles_cursor, false);
+ // Mostriamo solo profili completi; quelli incompleti vengono filtrati a monte
 
  // Filtra per distanza massima se le coordinate sono disponibili
  if($pref_max_dist > 0 && isset($user->lat, $user->lng) && is_numeric($user->lat) && is_numeric($user->lng))
@@ -391,251 +376,254 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MeetHub – Discover</title>
-  <link rel="stylesheet" href="style.css">
-  <style>
-   .modal-overlay
-   {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.85);
-    backdrop-filter: blur(8px);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: fadeIn 0.2s ease;
-   }
-
-   @keyframes fadeIn
-   {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-   }
-
-   @keyframes slideDown
-   {
-    from { opacity: 0; transform: translateX(-50%) translateY(-50px); }
-    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-   }
-
-   .profile-detail          { text-align: center; }
-   .profile-detail-avatar   { width: 120px; height: 120px; border-radius: 50%; margin: 0 auto 1rem; overflow: hidden; background: linear-gradient(135deg, var(--coral), var(--gold)); }
-   .profile-detail-avatar img { width: 100%; height: 100%; object-fit: cover; }
-   .profile-detail-avatar div { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 3rem; }
-   .profile-detail-name     { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 0.25rem; }
-   .profile-detail-meta     { color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem; }
-   .profile-detail-bio      { background: var(--card2); padding: 1rem; border-radius: 16px; margin: 1rem 0; text-align: left; }
-   .profile-detail-section  { margin: 1rem 0; text-align: left; }
-
-   .profile-detail-section h4
-   {
-    color: var(--coral);
-    margin-bottom: 0.5rem;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-   }
-
-   .tags-container { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-
-   .tag
-   {
-    background: rgba(255,75,110,0.15);
-    padding: 0.3rem 0.8rem;
-    border-radius: 50px;
-    font-size: 0.8rem;
-    color: var(--coral-light);
-   }
-
-   .match-notification
-   {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: linear-gradient(135deg, var(--coral), var(--gold));
-    color: white;
-    padding: 15px 30px;
-    border-radius: 50px;
-    font-weight: bold;
-    z-index: 1001;
-    animation: slideDown 0.3s ease;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    cursor: pointer;
-   }
-
-   .match-notification a { color: white; margin-left: 10px; text-decoration: underline; }
-   .profile-card-image    { cursor: pointer; }
-  </style>
+  <title>MeetHub – Scopri</title>
+  <link rel="stylesheet" href="style.css?v=<?= filemtime('style.css') ?>">
  </head>
 
  <body>
+  <?php require "header.php"; ?>
+
   <div class="page-wrapper">
-   <div class="discover-layout" style="grid-template-columns:1fr; max-width:1100px">
-    <div class="card">
-     <div class="flex justify-between items-center" style="flex-wrap:wrap; gap:1rem">
-      <div>
-       <h2>Scopri persone</h2>
-       <p class="text-muted mt-1">Ciao <?= htmlspecialchars($user->name ?? "utente") ?>, scegli i profili con ❤️ o rifiuta con ❌. Clicca sulla foto per vedere i dettagli.</p>
-      </div>
-      <div class="flex gap-1" style="flex-wrap:wrap">
-       <a class="btn btn-primary" href="chat.php">Apri Chat Match</a>
-       <a class="btn btn-ghost" href="onboarding.php">Modifica profilo</a>
-       <a class="btn btn-outline" href="discover.php?logout=1">Esci</a>
-      </div>
+  <div class="discover-stage">
+
+   <?php if($error !== ""){ ?>
+    <div class="alert alert-danger" style="position:absolute;top:1rem;left:50%;transform:translateX(-50%);z-index:30;"><?= htmlspecialchars($error) ?></div>
+   <?php } ?>
+
+   <?php if($success !== ""){ ?>
+    <div class="alert alert-success" style="position:absolute;top:1rem;left:50%;transform:translateX(-50%);z-index:30;"><?= htmlspecialchars($success) ?></div>
+   <?php } ?>
+
+   <!--- FAB Filtri --->
+   <button class="discover-fab" onclick="toggleFilters(event)" aria-label="Filtri" title="Filtri">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+     <path d="M3 6h18M6 12h12M10 18h4"/>
+    </svg>
+    <?php if(!empty($selected_interest_filters)){ ?>
+     <span class="fab-dot"></span>
+    <?php } ?>
+   </button>
+
+   <!--- Popover filtri --->
+   <div class="discover-filter-popover" id="filter-panel">
+    <form method="GET">
+     <h4>Filtra per interessi</h4>
+     <div class="chips-grid">
+      <?php foreach($interest_options as $interest){ ?>
+       <label class="chip <?= in_array($interest, $selected_interest_filters, true) ? "selected" : "" ?>" style="display:inline-flex;align-items:center;gap:0.4rem;">
+        <input type="checkbox" name="interests[]" value="<?= htmlspecialchars($interest) ?>" <?= in_array($interest, $selected_interest_filters, true) ? "checked" : "" ?> style="width:auto;">
+        <span><?= htmlspecialchars($interest) ?></span>
+       </label>
+      <?php } ?>
      </div>
+     <div class="flex gap-1 mt-2">
+      <button type="submit" class="btn btn-primary btn-sm">Applica</button>
+      <a href="discover.php" class="btn btn-ghost btn-sm">Reset</a>
+     </div>
+    </form>
+   </div>
 
-     <?php if($error !== ""){ ?>
-      <div class="alert alert-danger mt-2"><?= htmlspecialchars($error) ?></div>
-     <?php } ?>
+   <?php if(count($profiles) === 0){ ?>
 
-     <?php if($success !== ""){ ?>
-      <div class="alert alert-success mt-2"><?= htmlspecialchars($success) ?></div>
-     <?php } ?>
-
-     <?php if($showing_incomplete_profiles){ ?>
-      <div class="alert mt-2" style="background:rgba(245,166,35,0.12); border:1px solid rgba(245,166,35,0.35); color:#ffd57a;">
-       Ti sto mostrando anche profili non ancora completi, ma sempre in linea con le tue preferenze.
-      </div>
-     <?php } ?>
-
-     <form method="GET" class="mt-2">
-      <input type="hidden" name="filter" value="1">
-      <label>Filtra per interessi</label>
-      <div class="chips-grid">
-       <?php foreach($interest_options as $interest){ ?>
-        <label class="chip <?= in_array($interest, $selected_interest_filters, true) ? "selected" : "" ?>" style="display:inline-flex; align-items:center; gap:0.5rem;">
-         <input type="checkbox" name="interests[]" value="<?= htmlspecialchars($interest) ?>" <?= in_array($interest, $selected_interest_filters, true) ? "checked" : "" ?> style="width:auto;">
-         <span><?= htmlspecialchars($interest) ?></span>
-        </label>
-       <?php } ?>
-      </div>
-      <div class="flex gap-1 mt-2">
-       <button type="submit" class="btn btn-primary btn-sm">Applica filtri</button>
-       <a href="discover.php" class="btn btn-ghost btn-sm">Reset</a>
-      </div>
-     </form>
+    <div class="bumble-empty">
+     <h3>Nessun nuovo profilo</h3>
+     <p>Hai già valutato tutti i profili disponibili. Torna più tardi.</p>
     </div>
 
-    <div class="profiles-grid">
-     <?php foreach($profiles as $profile){ ?>
-      <div class="profile-card">
-       <div class="profile-card-image" onclick="showProfileDetails('<?= (string)$profile->_id ?>')">
+   <?php } else { ?>
+
+    <!--- Stack di carte --->
+    <div class="card-stack" id="card-stack">
+
+     <?php foreach($profiles as $idx => $profile){ ?>
+      <?php
+       $pid     = (string)$profile->_id;
+       $pname   = htmlspecialchars($profile->name ?? "Utente");
+       $page    = calcAge($profile->birthdate ?? null);
+       $pcity   = htmlspecialchars($profile->city ?? "");
+       $pjob    = htmlspecialchars($profile->job  ?? "");
+       $pbio    = trim($profile->bio ?? "");
+       $pheight = isset($profile->height) && (int)$profile->height > 0 ? (int)$profile->height : 0;
+
+       $pinterests = [];
+       if(!empty($profile->interests))
+       {
+        if(is_array($profile->interests))                    $pinterests = $profile->interests;
+        elseif($profile->interests instanceof Traversable)   $pinterests = iterator_to_array($profile->interests, false);
+       }
+
+       $ptraits = [];
+       if(!empty($profile->traits))
+       {
+        if(is_array($profile->traits))                       $ptraits = $profile->traits;
+        elseif($profile->traits instanceof Traversable)      $ptraits = iterator_to_array($profile->traits, false);
+       }
+
+       $card_class = $idx === 0 ? "active" : ($idx === 1 ? "next-up" : "hidden-behind");
+      ?>
+      <article class="bumble-card <?= $card_class ?>" data-user-id="<?= htmlspecialchars($pid) ?>">
+
+       <!--- Foto + nome --->
+       <div class="card-photo">
         <?php if(!empty($profile->profile_image)){ ?>
-         <img src="<?= htmlspecialchars($profile->profile_image) ?>" alt="Foto profilo di <?= htmlspecialchars($profile->name ?? "Utente") ?>">
+         <img src="<?= htmlspecialchars($profile->profile_image) ?>" alt="<?= $pname ?>">
         <?php } else { ?>
-         <div class="avatar-emoji">👤</div>
+         <div class="card-photo-placeholder"><?= strtoupper(substr($profile->name ?? "?", 0, 1)) ?></div>
         <?php } ?>
-        <div class="profile-gradient-overlay"></div>
-        <div class="profile-card-info">
-         <div class="profile-name">
-          <?= htmlspecialchars($profile->name ?? "Utente") ?><?= calcAge($profile->birthdate ?? null) > 0 ? ", " . calcAge($profile->birthdate ?? null) : "" ?>
-         </div>
-         <div class="profile-meta">
-          <?= htmlspecialchars($profile->city ?? "Città non indicata") ?><?= !empty($profile->job) ? " • " . htmlspecialchars($profile->job) : "" ?>
-         </div>
-         <?php
-          // Recupera interessi in modo sicuro per la visualizzazione
-          $interests = [];
-          if(!empty($profile->interests))
-          {
-           if(is_array($profile->interests))
-           {
-            $interests = $profile->interests;
-           }
-           elseif($profile->interests instanceof Traversable)
-           {
-            $interests = iterator_to_array($profile->interests, false);
-           }
-          }
-         ?>
-         <?php if(!empty($interests)){ ?>
-          <div class="profile-tags">
-           <?php foreach(array_slice($interests, 0, 3) as $interest){ ?>
-            <span class="tag"><?= htmlspecialchars($interest) ?></span>
-           <?php } ?>
-          </div>
-         <?php } ?>
+        <div class="card-photo-overlay">
+         <h2 class="card-name"><?= $pname ?><?= $page > 0 ? ", $page" : "" ?></h2>
         </div>
        </div>
 
-       <div class="card-actions">
-        <form method="POST" class="action-form" data-user-id="<?= (string)$profile->_id ?>" data-action="reject">
-         <input type="hidden" name="target_user_id" value="<?= (string)$profile->_id ?>">
-         <input type="hidden" name="action" value="reject">
-         <button type="submit" class="action-btn btn-pass" title="Rifiuta">❌</button>
-        </form>
+       <!--- Body --->
+       <div class="card-body">
 
-        <button type="button" class="action-btn" style="background: var(--card2); border: 1px solid var(--border);"
-                onclick="showProfileDetails('<?= (string)$profile->_id ?>')"
-                title="Vedi dettagli profilo">
-         👁️
-        </button>
+        <?php if($pbio !== ""){ ?>
+         <p class="card-bio"><?= htmlspecialchars($pbio) ?></p>
+        <?php } ?>
 
-        <form method="POST" class="action-form" data-user-id="<?= (string)$profile->_id ?>" data-action="like">
-         <input type="hidden" name="target_user_id" value="<?= (string)$profile->_id ?>">
-         <input type="hidden" name="action" value="like">
-         <button type="submit" class="action-btn btn-like" title="Richiedi match">❤️</button>
-        </form>
+        <?php if($pheight || $pcity || $pjob){ ?>
+         <div class="card-facts">
+          <?php if($pheight){ ?>
+           <span class="card-fact">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 7l5-4 5 4M7 17l5 4 5-4"/></svg>
+            <?= $pheight ?> cm
+           </span>
+          <?php } ?>
+          <?php if($pcity){ ?>
+           <span class="card-fact">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            <?= $pcity ?>
+           </span>
+          <?php } ?>
+          <?php if($pjob){ ?>
+           <span class="card-fact">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <?= $pjob ?>
+           </span>
+          <?php } ?>
+         </div>
+        <?php } ?>
+
+        <?php if(!empty($pinterests)){ ?>
+         <div>
+          <h4 class="card-section-title">Interessi</h4>
+          <div class="card-chips">
+           <?php foreach($pinterests as $pi){ ?>
+            <span class="card-chip"><?= htmlspecialchars($pi) ?></span>
+           <?php } ?>
+          </div>
+         </div>
+        <?php } ?>
+
+        <?php if(!empty($ptraits)){ ?>
+         <div>
+          <h4 class="card-section-title">Qualità</h4>
+          <div class="card-chips">
+           <?php foreach($ptraits as $pt){ ?>
+            <span class="card-chip"><?= htmlspecialchars($pt) ?></span>
+           <?php } ?>
+          </div>
+         </div>
+        <?php } ?>
+
        </div>
-      </div>
+
+      </article>
      <?php } ?>
+
     </div>
 
-    <?php if(count($profiles) === 0){ ?>
-     <div class="card empty-state">
-      <div class="emoji">🫶</div>
-      <h3>Nessun nuovo profilo disponibile</h3>
-      <p class="text-muted mt-1">Hai già valutato tutti i profili disponibili. Torna più tardi.</p>
-     </div>
-    <?php } ?>
-   </div>
+    <!--- Empty state (mostrato quando si finiscono le carte) --->
+    <div class="bumble-empty hidden" id="empty-state" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);">
+     <h3>Hai visto tutti i profili!</h3>
+     <p>Torna più tardi per scoprirne di nuovi.</p>
+    </div>
+
+    <!--- Pulsanti azione --->
+    <div class="card-actions" id="card-actions">
+     <button class="action-btn action-pass" onclick="doAction('reject')" aria-label="Rifiuta" title="Rifiuta (←)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+       <path d="M18 6L6 18M6 6l12 12"/>
+      </svg>
+     </button>
+     <button class="action-btn action-like" onclick="doAction('like')" aria-label="Like" title="Like (→)">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41 0.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+      </svg>
+     </button>
+    </div>
+
+   <?php } ?>
+
   </div>
-
-  <!--- Modal per vedere i dettagli del profilo prima di interagire --->
-  <div id="profile-modal" class="modal-overlay" style="display: none;">
-   <div class="modal-card" style="max-width: 500px; max-height: 80vh; overflow-y: auto;">
-    <div style="text-align: right;">
-     <button onclick="closeModal()" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; padding: 0.5rem;">&times;</button>
-    </div>
-    <div id="modal-content">
-     <div style="text-align:center; padding:2rem;">⏳ Caricamento profilo...</div>
-    </div>
-    <div class="flex gap-1" style="margin-top: 1.5rem; justify-content: center;">
-     <button id="modal-reject-btn" class="btn btn-pass" style="font-size: 1.2rem; padding: 0.75rem 1.5rem;">❌ Rifiuta</button>
-     <button id="modal-like-btn" class="btn btn-like" style="font-size: 1.2rem; padding: 0.75rem 1.5rem;">❤️ Like</button>
-    </div>
-   </div>
   </div>
 
   <script>
-   let current_modal_user_id = null;// ID dell'utente attualmente nel modal
+   var cards        = [];
+   var currentIndex = 0;
+   var isAnimating  = false;
 
-   // Mostra la notifica di match
-   function showMatchNotification(user_id)
+   function initStack()
    {
-    const notification       = document.createElement("div");
-    notification.className   = "match-notification";
-    notification.innerHTML   = "🎉 È un MATCH! 🎉 <a href=\"chat.php\">Vai alla chat →</a>";
-    notification.onclick     = () => { window.location.href = "chat.php"; };
-    document.body.appendChild(notification);
+    var nodes = document.querySelectorAll(".bumble-card[data-user-id]");
 
-    setTimeout(() =>
+    for(var i = 0; i < nodes.length; i++)
     {
-     notification.style.opacity = "0";
-     setTimeout(() => notification.remove(), 300);
-    }, 5000);
+     cards.push(nodes[i]);
+    }
    }
 
-   // Esegue un'azione (like/reject) via XHR
-   function performAction(user_id, action, close_modal_after)
+   function showEmptyState()
    {
-    if(close_modal_after === undefined) close_modal_after = true;
+    var empty   = document.getElementById("empty-state");
+    var actions = document.getElementById("card-actions");
+    if(empty)   empty.classList.remove("hidden");
+    if(actions) actions.style.display = "none";
+   }
 
-    var form_data = new FormData();
-    form_data.append("target_user_id", user_id);
-    form_data.append("action", action);
+   function doAction(action)
+   {
+    if(isAnimating) return;
+    if(currentIndex >= cards.length) return;
+
+    isAnimating = true;
+    var card    = cards[currentIndex];
+    var userId  = card.dataset.userId;
+
+    // Sposta la carta attiva fuori dallo schermo
+    card.classList.remove("active");
+    card.classList.add(action === "like" ? "swiping-right" : "swiping-left");
+
+    // Promuovi la prossima a "active" in parallelo (effetto stack che si solleva)
+    if(currentIndex + 1 < cards.length)
+    {
+     cards[currentIndex + 1].classList.remove("next-up", "hidden-behind");
+     cards[currentIndex + 1].classList.add("active");
+    }
+    if(currentIndex + 2 < cards.length)
+    {
+     cards[currentIndex + 2].classList.remove("hidden-behind");
+     cards[currentIndex + 2].classList.add("next-up");
+    }
+
+    setTimeout(function()
+    {
+     card.style.display = "none";
+     currentIndex++;
+     isAnimating = false;
+
+     if(currentIndex >= cards.length) showEmptyState();
+    }, 500);
+
+    sendAction(userId, action);
+   }
+
+   function sendAction(user_id, action)
+   {
+    var fd = new FormData();
+    fd.append("target_user_id", user_id);
+    fd.append("action", action);
 
     var xhr = new XMLHttpRequest();
     xhr.open("POST", "discover.php");
@@ -644,200 +632,62 @@
     xhr.onreadystatechange = function()
     {
      if(xhr.readyState !== XMLHttpRequest.DONE) return;
+     if(xhr.status !== 200) return;
 
-     if(xhr.status === 200)
+     try
      {
-      try
-      {
-       var result = JSON.parse(xhr.responseText);
-
-       if(result.success)
-       {
-        if(result.match) showMatchNotification(user_id);
-        if(close_modal_after) closeModal();
-        location.reload();
-       }
-       else
-       {
-        alert(result.error || "Errore durante l'operazione");
-       }
-      }
-      catch(e)
-      {
-       alert("Errore di comunicazione");
-      }
+      var result = JSON.parse(xhr.responseText);
+      if(result.success && result.match) showMatchNotification();
      }
-     else
-     {
-      alert("Errore di connessione");
-     }
+     catch(e) {}
     };
 
-    xhr.onerror = function()
-    {
-     alert("Errore di connessione");
-    };
-
-    xhr.send(form_data);
+    xhr.onerror = function() {};
+    xhr.send(fd);
    }
 
-   // Apre il modal con i dettagli del profilo
-   function showProfileDetails(user_id)
+   function showMatchNotification()
    {
-    var modal         = document.getElementById("profile-modal");
-    var modal_content = document.getElementById("modal-content");
-    current_modal_user_id = user_id;
+    var n        = document.createElement("div");
+    n.className  = "match-notification";
+    n.innerHTML  = "È un match! <a href=\"chat.php\">Vai alla chat →</a>";
+    n.onclick    = function() { window.location.href = "chat.php"; };
+    document.body.appendChild(n);
 
-    modal_content.innerHTML = "<div style=\"text-align:center; padding:2rem;\">⏳ Caricamento profilo...</div>";
-    modal.style.display = "flex";
-
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", "discover.php?get_user_details=1&id=" + user_id);
-    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-
-    xhr.onreadystatechange = function()
+    setTimeout(function()
     {
-     if(xhr.readyState !== XMLHttpRequest.DONE) return;
-
-     if(xhr.status === 200)
-     {
-      try
-      {
-       var result = JSON.parse(xhr.responseText);
-
-       if(result.success && result.data)
-       {
-        var user = result.data;
-
-        modal_content.innerHTML = `
-         <div class="profile-detail">
-          <div class="profile-detail-avatar">
-           ${user.profile_image ?
-            `<img src="${escapeHtml(user.profile_image)}" alt="${escapeHtml(user.name)}">` :
-            "<div>👤</div>"
-           }
-          </div>
-          <div class="profile-detail-name">${escapeHtml(user.name)}${user.age ? `, ${user.age}` : ""}</div>
-          <div class="profile-detail-meta">
-           ${user.city ? `📍 ${escapeHtml(user.city)}` : ""}
-           ${user.job ? ` • 💼 ${escapeHtml(user.job)}` : ""}
-           ${user.height ? ` • 📏 ${user.height} cm` : ""}
-          </div>
-          ${user.bio ? `
-          <div class="profile-detail-bio">
-           <strong>📝 Chi sono</strong><br>
-           ${escapeHtml(user.bio).replace(/\n/g, "<br>")}
-          </div>
-          ` : ""}
-          ${user.interests && user.interests.length > 0 ? `
-          <div class="profile-detail-section">
-           <h4>🎯 Interessi</h4>
-           <div class="tags-container">
-            ${user.interests.map(i => `<span class="tag">${escapeHtml(i)}</span>`).join("")}
-           </div>
-          </div>
-          ` : ""}
-          ${user.traits && user.traits.length > 0 ? `
-          <div class="profile-detail-section">
-           <h4>✨ Qualità</h4>
-           <div class="tags-container">
-            ${user.traits.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}
-           </div>
-          </div>
-          ` : ""}
-         </div>
-        `;
-
-        var like_btn   = document.getElementById("modal-like-btn");
-        var reject_btn = document.getElementById("modal-reject-btn");
-
-        var new_like_btn   = like_btn.cloneNode(true);
-        var new_reject_btn = reject_btn.cloneNode(true);
-        like_btn.parentNode.replaceChild(new_like_btn, like_btn);
-        reject_btn.parentNode.replaceChild(new_reject_btn, reject_btn);
-
-        new_like_btn.onclick   = function() { performAction(user_id, "like",   true); };
-        new_reject_btn.onclick = function() { performAction(user_id, "reject", true); };
-       }
-       else
-       {
-        modal_content.innerHTML = "<div style=\"text-align:center; padding:2rem; color:var(--danger);\">❌ " + (result.error || "Errore nel caricamento del profilo") + "</div>";
-       }
-      }
-      catch(e)
-      {
-       modal_content.innerHTML = `
-        <div style="text-align:center; padding:2rem; color:var(--danger);">
-         ❌ Errore di connessione<br>
-         <small style="font-size:0.8rem;">Ricarica la pagina e riprova</small>
-        </div>
-       `;
-      }
-     }
-     else
-     {
-      modal_content.innerHTML = `
-       <div style="text-align:center; padding:2rem; color:var(--danger);">
-        ❌ Errore di connessione<br>
-        <small style="font-size:0.8rem;">Ricarica la pagina e riprova</small>
-       </div>
-      `;
-     }
-    };
-
-    xhr.onerror = function()
-    {
-     modal_content.innerHTML = `
-      <div style="text-align:center; padding:2rem; color:var(--danger);">
-       ❌ Errore di connessione<br>
-       <small style="font-size:0.8rem;">Ricarica la pagina e riprova</small>
-      </div>
-     `;
-    };
-
-    xhr.send();
+     n.style.transition = "opacity 0.3s";
+     n.style.opacity    = "0";
+     setTimeout(function() { n.remove(); }, 300);
+    }, 5000);
    }
 
-   function closeModal()
+   function toggleFilters(e)
    {
-    document.getElementById("profile-modal").style.display = "none";
-    current_modal_user_id = null;
+    if(e) e.stopPropagation();
+    var p = document.getElementById("filter-panel");
+    if(p) p.classList.toggle("open");
    }
 
-   function escapeHtml(text)
+   // Chiude il popover quando si clicca fuori
+   document.addEventListener("click", function(e)
    {
-    if(!text) return "";
-    const div        = document.createElement("div");
-    div.textContent  = text;
-    return div.innerHTML;
-   }
-
-   // Intercetta l'invio dei form di like/reject per usare AJAX
-   document.querySelectorAll(".action-form").forEach(form =>
-   {
-    form.addEventListener("submit", function(e)
-    {
-     e.preventDefault();
-     var user_id = form.dataset.userId;
-     var action  = form.dataset.action;
-     performAction(user_id, action, false);
-    });
+    var p   = document.getElementById("filter-panel");
+    var fab = document.querySelector(".discover-fab");
+    if(!p || !fab) return;
+    if(p.contains(e.target) || fab.contains(e.target)) return;
+    p.classList.remove("open");
    });
 
-   // Chiude il modal cliccando sull'overlay
-   document.getElementById("profile-modal").addEventListener("click", function(e)
-   {
-    if(e.target === this) closeModal();
-   });
-
-   // Chiude il modal con il tasto Escape
+   // Scorciatoie tastiera: frecce
    document.addEventListener("keydown", function(e)
    {
-    if(e.key === "Escape" && document.getElementById("profile-modal").style.display === "flex")
-    {
-     closeModal();
-    }
+    if(e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+    if(e.key === "ArrowLeft")  doAction("reject");
+    if(e.key === "ArrowRight") doAction("like");
    });
+
+   initStack();
   </script>
  </body>
 </html>

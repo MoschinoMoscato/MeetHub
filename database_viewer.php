@@ -121,17 +121,13 @@
  </head>
 
  <body>
+  <?php require "header.php"; ?>
   <div class="page-wrapper">
    <div class="account-layout" style="max-width:1200px;">
 
     <div class="card">
-     <div class="flex justify-between items-center" style="flex-wrap:wrap; gap:1rem;">
-      <div>
-       <h2>Database Viewer</h2>
-       <p class="text-muted mt-1">Database: <?= htmlspecialchars($db_name) ?></p>
-      </div>
-      <a class="btn btn-ghost btn-sm" href="discover.php">Torna a Discover</a>
-     </div>
+     <h2>Database Viewer</h2>
+     <p class="text-muted mt-1">Database: <?= htmlspecialchars($db_name) ?></p>
     </div>
 
     <?php foreach($collections as $collection_info){ ?>

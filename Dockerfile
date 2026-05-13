@@ -2,7 +2,11 @@ FROM dunglas/frankenphp:php8.3
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
-RUN install-php-extensions mongodb
+RUN apt-get update \
+ && apt-get install -y git unzip \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN install-php-extensions mongodb zip
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

@@ -9,7 +9,17 @@
 
  // Durata sessione
  ini_set("session.cookie_lifetime", 0);
- ini_set("session.gc_maxlifetime", 0);
+ ini_set("session.gc_maxlifetime", 86400);
+ ini_set("session.gc_probability", 1);
+ ini_set("session.gc_divisor", 1000);
+
+ session_set_cookie_params([
+  "lifetime" => 0,
+  "path"     => "/",
+  "secure"   => true,
+  "httponly" => true,
+  "samesite" => "Lax"
+ ]);
 
  // Avvio sessione e autoload Composer
  session_start();

@@ -4,18 +4,38 @@
  $header_avatar       = $current_user_header->profile_image ?? null;
  $header_name         = $current_user_header->name ?? "";
 
- $notif_unread_msgs = 0;
- $notif_match_items = [];
+ $notif_message_items = [];
+ $notif_match_items   = [];
 
  if($current_user_header)
  {
   $cur_id = $current_user_header->_id;
   $db_h   = getDB();
 
-  // Messaggi non letti (indipendente dal seen_by — si azzerano leggendoli in chat)
+  // Messaggi non letti raggruppati per mittente
   try
   {
-   $notif_unread_msgs = (int)$db_h->messages->countDocuments(["to_user_id" => $cur_id, "read" => false]);
+   $pipeline = [
+    ['$match' => ["to_user_id" => $cur_id, "read" => false]],
+    ['$group' => ["_id" => '$from_user_id', "count" => ['$sum' => 1]]],
+    ['$sort'  => ["count" => -1]],
+    ['$limit' => 5]
+   ];
+
+   foreach($db_h->messages->aggregate($pipeline) as $row)
+   {
+    $sender = $db_h->users->findOne(["_id" => $row->_id], ["projection" => ["name" => 1, "profile_image" => 1]]);
+    if($sender)
+    {
+     $notif_message_items[] =
+     [
+      "id"    => (string)$row->_id,
+      "name"  => (string)($sender->name ?? "?"),
+      "img"   => $sender->profile_image ?? null,
+      "count" => (int)$row->count
+     ];
+    }
+   }
   }
   catch(Throwable $e) {}
 
@@ -57,7 +77,8 @@
   catch(Throwable $e) {}
  }
 
- $notif_total = $notif_unread_msgs + count($notif_match_items);
+ $notif_msg_total = array_sum(array_column($notif_message_items, "count"));
+ $notif_total     = $notif_msg_total + count($notif_match_items);
 ?>
 <header class="app-header">
  <div class="app-header-inner">
@@ -119,20 +140,28 @@
       <?php } ?>
      <?php } ?>
 
-     <?php if($notif_unread_msgs > 0){ ?>
+     <?php if(count($notif_message_items) > 0){ ?>
       <div class="notif-section-label">Messaggi</div>
-      <a class="notif-item" href="chat.php"
-         data-msg-count="<?= $notif_unread_msgs ?>"
-         onclick="dismissMsgs(this)">
-       <div class="notif-item-avatar notif-item-avatar--msg">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-       </div>
-       <div class="notif-item-body">
-        <strong><?= $notif_unread_msgs ?> messagg<?= $notif_unread_msgs === 1 ? "io" : "i" ?> non lett<?= $notif_unread_msgs === 1 ? "o" : "i" ?></strong>
-        <span>Vai alle chat →</span>
-       </div>
-       <div class="notif-item-dot"></div>
-      </a>
+      <?php foreach($notif_message_items as $mi){ ?>
+       <a class="notif-item"
+          href="chat.php?chat=<?= htmlspecialchars($mi["id"]) ?>"
+          data-sender-id="<?= htmlspecialchars($mi["id"]) ?>"
+          data-msg-count="<?= $mi["count"] ?>"
+          onclick="dismissMsgs(this)">
+        <div class="notif-item-avatar">
+         <?php if($mi["img"]){ ?>
+          <img src="<?= htmlspecialchars($mi["img"]) ?>" alt="">
+         <?php } else { ?>
+          <?= strtoupper(substr($mi["name"], 0, 1)) ?>
+         <?php } ?>
+        </div>
+        <div class="notif-item-body">
+         <strong><?= htmlspecialchars($mi["name"]) ?></strong>
+         <span><?= $mi["count"] ?> messagg<?= $mi["count"] === 1 ? "io" : "i" ?> non lett<?= $mi["count"] === 1 ? "o" : "i" ?></span>
+        </div>
+        <div class="notif-item-dot"></div>
+       </a>
+      <?php } ?>
      <?php } ?>
     </div>
    </div>
@@ -208,9 +237,19 @@
  document.addEventListener("click", closeAll);
 })();
 
+// IDs dei match già cliccati questa sessione (non rimostrare nel pannello)
+var _dismissed_match_ids = {};
+
+// IDs dei mittenti messaggi già cliccati questa sessione
+var _dismissed_msg_senders = {};
+
+// Timestamp dell'ultimo dismiss — evita che il polling sovrascriva il badge subito dopo
+var _notif_last_dismiss = 0;
+
 // Decrementa il badge globale di `n` unità
 function adjustBadge(n)
 {
+ _notif_last_dismiss = Date.now();
  var badge = document.getElementById("notif-badge");
  if(!badge) return;
  var count = parseInt(badge.textContent) || 0;
@@ -219,6 +258,172 @@ function adjustBadge(n)
  else badge.textContent = count > 9 ? "9+" : String(count);
 }
 
+// ── Polling notifiche ogni 5 secondi ─────────────────────────────────────────
+(function()
+{
+ function _esc(s)
+ {
+  return String(s || "")
+   .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+ }
+
+ function syncBadge(total)
+ {
+  var btn   = document.getElementById("notif-btn");
+  var badge = document.getElementById("notif-badge");
+
+  if(total > 0)
+  {
+   var label = total > 9 ? "9+" : String(total);
+   if(badge) { badge.textContent = label; }
+   else if(btn)
+   {
+    var b = document.createElement("span");
+    b.className   = "app-notif-badge";
+    b.id          = "notif-badge";
+    b.textContent = label;
+    btn.appendChild(b);
+   }
+  }
+  else if(badge) { badge.remove(); }
+ }
+
+ function syncPanel(data)
+ {
+  var panel = document.getElementById("notif-panel");
+  if(!panel) return;
+
+  // Filtra i match già cliccati in questa sessione
+  var matches = (data.match_items || []).filter(function(m)
+  {
+   return !_dismissed_match_ids[m.match_id];
+  });
+
+  // Filtra i mittenti già cliccati in questa sessione
+  var msgItems = (data.message_items || []).filter(function(mi)
+  {
+   return !_dismissed_msg_senders[mi.id];
+  });
+
+  var total = msgItems.reduce(function(s, mi) { return s + mi.count; }, 0) + matches.length;
+
+  // Ricostruisce il contenuto dopo il titolo
+  var title = panel.querySelector(".notif-panel-title");
+  while(panel.lastChild && panel.lastChild !== title)
+   panel.removeChild(panel.lastChild);
+
+  if(total === 0)
+  {
+   var empty = document.createElement("div");
+   empty.className = "notif-empty";
+   empty.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Nessuna nuova notifica';
+   panel.appendChild(empty);
+   return;
+  }
+
+  if(matches.length > 0)
+  {
+   var lbl = document.createElement("div");
+   lbl.className = "notif-section-label";
+   lbl.textContent = "Match recenti";
+   panel.appendChild(lbl);
+
+   matches.forEach(function(mi)
+   {
+    var a = document.createElement("a");
+    a.className = "notif-item";
+    a.href = "chat.php?chat=" + encodeURIComponent(mi.id);
+    a.dataset.matchId = mi.match_id;
+    a.addEventListener("click", function(e) { dismissMatch(e, this); });
+
+    var av = document.createElement("div");
+    av.className = "notif-item-avatar";
+    if(mi.img)
+    {
+     var img = document.createElement("img");
+     img.src = mi.img; img.alt = "";
+     av.appendChild(img);
+    }
+    else { av.textContent = (mi.name || "?").charAt(0).toUpperCase(); }
+
+    var body = document.createElement("div");
+    body.className = "notif-item-body";
+    body.innerHTML = "<strong>" + _esc(mi.name) + "</strong><span>Nuovo match! 🎉</span>";
+
+    var dot = document.createElement("div");
+    dot.className = "notif-item-dot";
+
+    a.appendChild(av); a.appendChild(body); a.appendChild(dot);
+    panel.appendChild(a);
+   });
+  }
+
+  if(msgItems.length > 0)
+  {
+   var mlbl = document.createElement("div");
+   mlbl.className = "notif-section-label";
+   mlbl.textContent = "Messaggi";
+   panel.appendChild(mlbl);
+
+   msgItems.forEach(function(mi)
+   {
+    var ma = document.createElement("a");
+    ma.className = "notif-item";
+    ma.href = "chat.php?chat=" + encodeURIComponent(mi.id);
+    ma.dataset.senderId = mi.id;
+    ma.dataset.msgCount = mi.count;
+    ma.addEventListener("click", function() { dismissMsgs(this); });
+
+    var mav = document.createElement("div");
+    mav.className = "notif-item-avatar";
+    if(mi.img)
+    {
+     var mimg = document.createElement("img");
+     mimg.src = mi.img; mimg.alt = "";
+     mav.appendChild(mimg);
+    }
+    else { mav.textContent = (mi.name || "?").charAt(0).toUpperCase(); }
+
+    var mbody = document.createElement("div");
+    mbody.className = "notif-item-body";
+    mbody.innerHTML = "<strong>" + _esc(mi.name) + "</strong><span>" + mi.count + " messagg" + (mi.count === 1 ? "io" : "i") + " non lett" + (mi.count === 1 ? "o" : "i") + "</span>";
+
+    var mdot = document.createElement("div");
+    mdot.className = "notif-item-dot";
+
+    ma.appendChild(mav); ma.appendChild(mbody); ma.appendChild(mdot);
+    panel.appendChild(ma);
+   });
+  }
+ }
+
+ function pollNotifications()
+ {
+  // Aspetta 8 s dopo un dismiss manuale per non sovrascrivere il badge
+  if(Date.now() - _notif_last_dismiss < 8000) return;
+
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", "api/notifications.php");
+  xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+  xhr.onreadystatechange = function()
+  {
+   if(xhr.readyState !== XMLHttpRequest.DONE) return;
+   if(xhr.status !== 200) return;
+   try
+   {
+    var r = JSON.parse(xhr.responseText);
+    if(r.success) { syncBadge(r.total); syncPanel(r); }
+   }
+   catch(e) {}
+  };
+
+  xhr.send();
+ }
+
+ setInterval(pollNotifications, 5000);
+})();
+
 // Click su una notifica match: segna come vista e naviga
 function dismissMatch(e, el)
 {
@@ -226,6 +431,9 @@ function dismissMatch(e, el)
 
  var matchId = el.dataset.matchId;
  var href    = el.href;
+
+ // Segna localmente come già visto (il panel non lo rimostra)
+ _dismissed_match_ids[matchId] = true;
 
  // Rimuovi pallino + decrementa badge immediatamente
  el.querySelector(".notif-item-dot")?.remove();
@@ -243,10 +451,12 @@ function dismissMatch(e, el)
  setTimeout(go, 1000);// fallback se XHR è lento
 }
 
-// Click su notifica messaggi: rimuovi pallino, decrementa badge e lascia navigare
+// Click su notifica messaggi: segna mittente come visto, decrementa badge e lascia navigare
 function dismissMsgs(el)
 {
- var count = parseInt(el.dataset.msgCount) || 0;
+ var senderId = el.dataset.senderId;
+ var count    = parseInt(el.dataset.msgCount) || 0;
+ if(senderId) _dismissed_msg_senders[senderId] = true;
  el.querySelector(".notif-item-dot")?.remove();
  adjustBadge(count);
  // La navigazione avviene naturalmente tramite href

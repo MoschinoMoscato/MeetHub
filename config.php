@@ -13,7 +13,7 @@
 
  // Avvio sessione e autoload Composer
  session_start();
- require "vendor/autoload.php";
+ require __DIR__ . "/vendor/autoload.php";
 
  // Connessione al database MongoDB (singleton)
  function getDB()

@@ -29,7 +29,8 @@
 
   $pref_min_age  = (int)($_POST["pref_min_age"]  ?? 18);
   $pref_max_age  = (int)($_POST["pref_max_age"]  ?? 50);
-  $pref_max_dist = (int)($_POST["pref_max_dist"] ?? 50);
+  $pref_max_dist    = ($_POST["pref_max_dist_any"] ?? "0") === "1" ? 0 : (int)($_POST["pref_max_dist"] ?? 50);
+  $location_enabled = isset($_POST["location_enabled"]);
 
   // Upload foto
   if(isset($_FILES["profile_image"]) && ($_FILES["profile_image"]["error"] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE)
@@ -81,17 +82,22 @@
       "profile_image" => $profile_image,
       "interests"     => $interests,
       "traits"        => $traits,
-      "preferences"   =>
+      "preferences"      =>
       [
        "gender"   => $pref_gender,
        "min_age"  => $pref_min_age,
        "max_age"  => $pref_max_age,
        "max_dist" => $pref_max_dist
       ],
+      "location_enabled" => $location_enabled,
       "profile_complete" => true,
       "updated_at"       => new MongoDB\BSON\UTCDateTime()
      ]
     ]);
+
+    // Se la posizione è disabilitata, rimuovi le coordinate salvate
+    if(!$location_enabled)
+     $db->users->updateOne(["_id" => $id], ['$unset' => ["lat" => "", "lng" => ""]]);
 
     $success = "Profilo aggiornato con successo.";
     $user    = currentUser();// Ricarica dati aggiornati
@@ -120,6 +126,7 @@
  if(!empty($preferences->gender))
   $existing_pref_gender = is_array($preferences->gender) ? $preferences->gender : iterator_to_array($preferences->gender, false);
 
+ $location_enabled = $user->location_enabled ?? true;
  $age = calcAge($user->birthdate ?? "");
 ?>
 <!DOCTYPE html>
@@ -220,19 +227,21 @@
      <div class="profile-edit-section">
       <h4 class="profile-section-title">Cosa cerchi?</h4>
 
-      <div class="form-group">
-       <label>Genere preferito</label>
+      <!-- Genere -->
+      <div class="pref-block">
+       <div class="pref-block-label">Genere preferito</div>
        <div class="chips-grid" id="pref-gender-grid">
-        <button type="button" class="chip <?= in_array("uomo",       $existing_pref_gender) ? "selected" : "" ?>" data-value="uomo"       onclick="toggleChip(this,'pref_gender')">Uomo</button>
-        <button type="button" class="chip <?= in_array("donna",      $existing_pref_gender) ? "selected" : "" ?>" data-value="donna"      onclick="toggleChip(this,'pref_gender')">Donna</button>
-        <button type="button" class="chip <?= in_array("non-binario",$existing_pref_gender) ? "selected" : "" ?>" data-value="non-binario" onclick="toggleChip(this,'pref_gender')">Non-binario</button>
-        <button type="button" class="chip <?= in_array("altro",      $existing_pref_gender) ? "selected" : "" ?>" data-value="altro"      onclick="toggleChip(this,'pref_gender')">Altro</button>
+        <button type="button" class="chip <?= in_array("uomo",        $existing_pref_gender) ? "selected" : "" ?>" data-value="uomo"        onclick="toggleChip(this,'pref_gender')">Uomo</button>
+        <button type="button" class="chip <?= in_array("donna",       $existing_pref_gender) ? "selected" : "" ?>" data-value="donna"       onclick="toggleChip(this,'pref_gender')">Donna</button>
+        <button type="button" class="chip <?= in_array("non-binario", $existing_pref_gender) ? "selected" : "" ?>" data-value="non-binario" onclick="toggleChip(this,'pref_gender')">Non-binario</button>
+        <button type="button" class="chip <?= in_array("altro",       $existing_pref_gender) ? "selected" : "" ?>" data-value="altro"       onclick="toggleChip(this,'pref_gender')">Altro</button>
        </div>
        <div id="pref-gender-container"></div>
       </div>
 
-      <div class="form-group mt-2">
-       <label>Fascia d'età: <span id="ageLabel"><?= $preferences->min_age ?? 18 ?> – <?= $preferences->max_age ?? 50 ?> anni</span></label>
+      <!-- Fascia d'età -->
+      <div class="pref-block">
+       <div class="pref-block-label">Fascia d'età: <span id="ageLabel"><?= $preferences->min_age ?? 18 ?> – <?= $preferences->max_age ?? 50 ?> anni</span></div>
        <div class="profile-edit-grid">
         <div>
          <small class="text-muted">Età minima</small>
@@ -245,9 +254,37 @@
        </div>
       </div>
 
-      <div class="form-group">
-       <label>Distanza massima: <span id="distLabel"><?= $preferences->max_dist ?? 50 ?> km</span></label>
-       <input type="range" name="pref_max_dist" id="pref_max_dist" min="5" max="200" value="<?= $preferences->max_dist ?? 50 ?>" oninput="document.getElementById('distLabel').textContent=this.value+' km'">
+      <!-- Distanza + Posizione -->
+      <?php $cur_dist = (int)($preferences->max_dist ?? 50); ?>
+      <?php $dist_locked = !$location_enabled || $cur_dist === 0; ?>
+      <div class="pref-block">
+       <div class="pref-block-label">Distanza massima: <span id="distLabel"><?= (!$location_enabled || $cur_dist === 0) ? "Qualsiasi" : $cur_dist . " km" ?></span></div>
+
+       <input type="range" name="pref_max_dist" id="pref_max_dist"
+              min="5" max="200" value="<?= $cur_dist === 0 ? 50 : $cur_dist ?>"
+              <?= $dist_locked ? 'disabled style="opacity:.35"' : '' ?>
+              oninput="document.getElementById('distLabel').textContent=this.value+' km'">
+
+       <label class="pref-checkbox-row">
+        <input type="checkbox" id="dist-any" <?= $cur_dist === 0 ? "checked" : "" ?>
+               onchange="toggleDistAny(this)" <?= !$location_enabled ? "disabled" : "" ?>>
+        Qualsiasi distanza (nessun limite)
+       </label>
+       <input type="hidden" name="pref_max_dist_any" id="pref_max_dist_any" value="<?= $cur_dist === 0 ? '1' : '0' ?>">
+
+       <!-- Toggle posizione -->
+       <div class="pref-row">
+        <div>
+         <div class="pref-row-title">Usa la mia posizione GPS</div>
+         <div class="pref-row-desc">Richiede il permesso del dispositivo. Se disattivato, il filtro distanza viene ignorato.</div>
+        </div>
+        <label class="toggle-switch">
+         <input type="checkbox" name="location_enabled" id="location-enabled"
+                <?= $location_enabled ? "checked" : "" ?>
+                onchange="toggleLocation(this)">
+         <span class="toggle-track"></span>
+        </label>
+       </div>
       </div>
      </div>
 
@@ -291,6 +328,59 @@
     document.getElementById("ageLabel").textContent =
      document.getElementById("pref_min_age").value + " – " +
      document.getElementById("pref_max_age").value + " anni";
+   }
+
+   function toggleDistAny(cb)
+   {
+    var slider  = document.getElementById("pref_max_dist");
+    var label   = document.getElementById("distLabel");
+    var anyFlag = document.getElementById("pref_max_dist_any");
+    if(cb.checked)
+    {
+     slider.disabled      = true;
+     slider.style.opacity = "0.35";
+     label.textContent    = "Qualsiasi";
+     anyFlag.value        = "1";
+    }
+    else
+    {
+     slider.disabled      = false;
+     slider.style.opacity = "";
+     label.textContent    = slider.value + " km";
+     anyFlag.value        = "0";
+    }
+   }
+
+   function toggleLocation(cb)
+   {
+    var slider  = document.getElementById("pref_max_dist");
+    var anyCb   = document.getElementById("dist-any");
+    var anyFlag = document.getElementById("pref_max_dist_any");
+    var label   = document.getElementById("distLabel");
+
+    if(!cb.checked)
+    {
+     // Posizione disabilitata: blocca tutto e forza "qualsiasi"
+     slider.disabled      = true;
+     slider.style.opacity = "0.35";
+     anyCb.disabled       = true;
+     label.textContent    = "Qualsiasi";
+    }
+    else
+    {
+     // Posizione abilitata: riabilita in base alla checkbox "qualsiasi"
+     anyCb.disabled = false;
+     if(!anyCb.checked)
+     {
+      slider.disabled      = false;
+      slider.style.opacity = "";
+      label.textContent    = slider.value + " km";
+     }
+     else
+     {
+      label.textContent = "Qualsiasi";
+     }
+    }
    }
 
    function previewPhoto(input)

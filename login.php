@@ -1,0 +1,81 @@
+<?php
+ require_once "config.php";
+ requireGuest();
+
+ $error = "";
+
+ if($_SERVER["REQUEST_METHOD"] === "POST")
+ {
+  $email    = trim($_POST["email"] ?? "");
+  $password = $_POST["password"] ?? "";
+
+  if(!$email || !$password)
+   $error = "Compila tutti i campi.";
+  else
+  {
+   $db   = getDB();
+   $user = $db->users->findOne(["email" => strtolower($email)]);
+
+   if($user && password_verify($password, $user->password))
+   {
+    $_SESSION["user_id"] = (string)$user->_id;
+    header("Location: " . (empty($user->profile_complete) ? "onboarding.php" : "discover.php"));
+    exit;
+   }
+   else { $error = "Email o password non corretti."; }
+  }
+ }
+?>
+<!DOCTYPE html>
+<html lang="it">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeetHub – Accedi</title>
+  <link rel="stylesheet" href="style.css">
+ </head>
+
+ <body>
+  <div class="page-wrapper">
+   <div class="auth-container">
+
+    <div class="auth-hero">
+     <div class="auth-hero-tag">Bentornato</div>
+     <h1>Riprendi<br>da dove<br><span style="color:var(--coral)">avevi</span><br>lasciato.</h1>
+     <p style="margin-top:1.5rem">I tuoi match ti stanno aspettando. Forse. Dipende da quant'è stato lungo il tuo silenzio.</p>
+    </div>
+
+    <div class="auth-form-side">
+     <div style="max-width:420px; width:100%">
+      <a href="index.php" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna alla home</a>
+
+      <h2>Accedi</h2>
+      <p class="subtitle">Inserisci le tue credenziali per continuare</p>
+
+      <?php if($error !== ""){ ?>
+       <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+      <?php } ?>
+
+      <form method="POST">
+       <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="tua@email.it"
+               value="<?= htmlspecialchars($_POST["email"] ?? "") ?>" required>
+       </div>
+       <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" placeholder="••••••••" required>
+       </div>
+       <button type="submit" class="btn btn-primary btn-full btn-lg mt-2">Accedi</button>
+      </form>
+
+      <p class="text-center mt-3 text-muted" style="font-size:0.85rem">
+       Non hai un account? <a href="register.php">Registrati gratis</a>
+      </p>
+     </div>
+    </div>
+
+   </div>
+  </div>
+ </body>
+</html>

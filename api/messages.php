@@ -1,191 +1,258 @@
 <?php
- if(!isset($id))          $id          = null;// Assicura che $id sia definito (passato da index.php)
- if(!isset($subresource)) $subresource = null;// Assicura che $subresource sia definito
+ ini_set("display_errors", 0);
+ require_once __DIR__ . "/../config.php";
 
- $method          = $_SERVER["REQUEST_METHOD"];
- $current_user_id = new MongoDB\BSON\ObjectId($_SESSION["user_id"]);
- $db              = getDB();
+ header("Content-Type: application/json");
 
- switch($method)
+ // Auth: API risponde sempre JSON
+ if(!isset($_SESSION["user_id"]))
  {
-  // GET /api/messages?with={userId} - Ottieni la conversazione con un utente
-  case "GET":
+  http_response_code(401);
+  echo json_encode(["error" => "session_expired"]);
+  exit;
+ }
 
-   $with_user_id = $_GET["with"] ?? null;
-   $limit        = min(200, (int)($_GET["limit"] ?? 50));
+ $db              = getDB();
+ $current_user_id = new MongoDB\BSON\ObjectId($_SESSION["user_id"]);
+ $method          = $_SERVER["REQUEST_METHOD"];
 
-   if(!$with_user_id)
+ // Verifica match reciproco tra current_user e other
+ function verifyMatch($db, $current_user_id, $other_id_str)
+ {
+  try { $other_id = new MongoDB\BSON\ObjectId($other_id_str); }
+  catch(Exception $e) { return false; }
+
+  $a = $db->interactions->findOne(["from_user_id" => $current_user_id, "to_user_id" => $other_id, "action" => "like"]);
+  if(!$a) return false;
+  $b = $db->interactions->findOne(["from_user_id" => $other_id, "to_user_id" => $current_user_id, "action" => "like"]);
+  return (bool)$b;
+ }
+
+ // ─── GET: recupera messaggi della conversazione ───────────────────────────────
+ if($method === "GET")
+ {
+  $with_str = $_GET["conversation_with"] ?? "";
+
+  if(!$with_str || !verifyMatch($db, $current_user_id, $with_str))
+  {
+   http_response_code(403);
+   echo json_encode(["error" => "Accesso negato"]);
+   exit;
+  }
+
+  $other_id = new MongoDB\BSON\ObjectId($with_str);
+
+  $db->messages->updateMany(
+   ["from_user_id" => $other_id, "to_user_id" => $current_user_id, "read" => false],
+   ['$set' => ["read" => true]]
+  );
+
+  $cursor = $db->messages->find(
+  [
+   '$or' =>
+   [
+    ["from_user_id" => $current_user_id, "to_user_id" => $other_id],
+    ["from_user_id" => $other_id, "to_user_id" => $current_user_id]
+   ]
+  ],
+  ["sort" => ["created_at" => 1], "limit" => 200]);
+
+  $messages = [];
+  foreach($cursor as $msg)
+  {
+   $messages[] =
+   [
+    "id"         => (string)$msg->_id,
+    "from"       => (string)$msg->from_user_id,
+    "type"       => $msg->type ?? "text",
+    "text"       => $msg->text ?? null,
+    "image_path" => $msg->image_path ?? null,
+    "read"       => $msg->read ?? false
+   ];
+  }
+
+  echo json_encode(["success" => true, "messages" => $messages]);
+  exit;
+ }
+
+ // ─── POST: invia messaggio (testo o immagine) ─────────────────────────────────
+ if($method === "POST")
+ {
+  $recipient_id_str = $_POST["recipient_id"] ?? "";
+  $type             = $_POST["type"]         ?? "text";
+
+  if(!$recipient_id_str || !verifyMatch($db, $current_user_id, $recipient_id_str))
+  {
+   http_response_code(403);
+   echo json_encode(["error" => "Destinatario non valido"]);
+   exit;
+  }
+
+  $recipient_id = new MongoDB\BSON\ObjectId($recipient_id_str);
+
+  if($type === "image")
+  {
+   if(!isset($_FILES["image"]) || $_FILES["image"]["error"] !== UPLOAD_ERR_OK)
    {
-    jsonError("Parametro \"with\" richiesto", 400, "MISSING_PARAMETER");
+    http_response_code(400);
+    echo json_encode(["error" => "Nessuna immagine ricevuta"]);
+    exit;
    }
+
+   $file         = $_FILES["image"];
+   $allowed_mime = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+   $mime         = mime_content_type($file["tmp_name"]);
+
+   if(!$mime || !in_array($mime, $allowed_mime))
+   {
+    http_response_code(400);
+    echo json_encode(["error" => "Tipo di file non supportato"]);
+    exit;
+   }
+
+   if($file["size"] > 5 * 1024 * 1024)
+   {
+    http_response_code(400);
+    echo json_encode(["error" => "Immagine troppo grande (max 5 MB)"]);
+    exit;
+   }
+
+   $ext = "jpg";
+   if($mime === "image/png")  $ext = "png";
+   if($mime === "image/gif")  $ext = "gif";
+   if($mime === "image/webp") $ext = "webp";
+
+   $upload_dir = __DIR__ . "/../uploads/chat/";
+   if(!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+
+   $filename = bin2hex(random_bytes(16)) . "." . $ext;
+   $filepath = $upload_dir . $filename;
+
+   if(!move_uploaded_file($file["tmp_name"], $filepath))
+   {
+    http_response_code(500);
+    echo json_encode(["error" => "Caricamento fallito"]);
+    exit;
+   }
+
+   $image_path = "uploads/chat/" . $filename;
 
    try
    {
-    $with_id  = new MongoDB\BSON\ObjectId($with_user_id);
-
-    // Verifica che i due utenti siano match
-    $is_match = $db->matches->findOne(["users" => ['$all' => [$current_user_id, $with_id]]]);
-
-    if(!$is_match)
-    {
-     jsonError("Puoi vedere solo i messaggi dei tuoi match", 403, "NOT_MATCH");
-    }
-
-    $messages = $db->messages->find(
-    [
-     '$or' =>
-     [
-      ["from_user_id" => $current_user_id, "to_user_id" => $with_id],
-      ["from_user_id" => $with_id,         "to_user_id" => $current_user_id]
-     ]
-    ],
-    ["sort" => ["created_at" => -1], "limit" => $limit]);
-
-    $messages_array = [];
-
-    foreach($messages as $msg)
-    {
-     $messages_array[] =
-     [
-      "id"           => (string)$msg->_id,
-      "text"         => $msg->text,
-      "from_user_id" => (string)$msg->from_user_id,
-      "to_user_id"   => (string)$msg->to_user_id,
-      "is_sent"      => (string)$msg->from_user_id === (string)$current_user_id,
-      "read"         => $msg->read ?? false,
-      "created_at"   => $msg->created_at->toDateTime()->format("Y-m-d H:i:s")
-     ];
-    }
-
-    jsonResponse(["success" => true, "data" => array_reverse($messages_array)]);
-   }
-   catch(Exception $e)
-   {
-    jsonError("ID utente non valido", 400, "INVALID_ID");
-   }
-
-   break;
-
-  // POST /api/messages - Invia un nuovo messaggio
-  case "POST":
-
-   $input        = json_decode(file_get_contents("php://input"), true) ?? [];
-   $recipient_id = $input["recipient_id"] ?? null;
-   $text         = trim($input["message"] ?? "");
-
-   if(!$recipient_id)
-   {
-    jsonError("Destinatario mancante", 400, "MISSING_RECIPIENT");
-   }
-
-   if(strlen($text) === 0)
-   {
-    jsonError("Il messaggio non può essere vuoto", 400, "EMPTY_MESSAGE");
-   }
-
-   if(strlen($text) > 1000)
-   {
-    jsonError("Il messaggio è troppo lungo (max 1000 caratteri)", 400, "MESSAGE_TOO_LONG");
-   }
-
-   try
-   {
-    $to_id = new MongoDB\BSON\ObjectId($recipient_id);
-
-    // Verifica che i due utenti siano match
-    $is_match = $db->matches->findOne(["users" => ['$all' => [$current_user_id, $to_id]]]);
-
-    if(!$is_match)
-    {
-     jsonError("Puoi inviare messaggi solo ai tuoi match", 403, "NOT_MATCH");
-    }
-
-    $result = $db->messages->insertOne(
+    $db->messages->insertOne(
     [
      "from_user_id" => $current_user_id,
-     "to_user_id"   => $to_id,
+     "to_user_id"   => $recipient_id,
+     "type"         => "image",
+     "image_path"   => $image_path,
+     "text"         => null,
+     "created_at"   => new MongoDB\BSON\UTCDateTime(),
+     "read"         => false
+    ]);
+    echo json_encode(["success" => true]);
+   }
+   catch(Throwable $e)
+   {
+    @unlink($filepath);
+    http_response_code(500);
+    echo json_encode(["error" => "Errore database"]);
+   }
+  }
+  else
+  {
+   $text = trim($_POST["message"] ?? "");
+
+   if($text === "")
+   {
+    http_response_code(400);
+    echo json_encode(["error" => "Messaggio vuoto"]);
+    exit;
+   }
+
+   try
+   {
+    $db->messages->insertOne(
+    [
+     "from_user_id" => $current_user_id,
+     "to_user_id"   => $recipient_id,
+     "type"         => "text",
      "text"         => $text,
      "created_at"   => new MongoDB\BSON\UTCDateTime(),
      "read"         => false
     ]);
-
-    jsonResponse(
-    [
-     "success" => true,
-     "data"    =>
-     [
-      "message_id" => (string)$result->getInsertedId(),
-      "created_at" => date("Y-m-d H:i:s")
-     ]
-    ], 201);
+    echo json_encode(["success" => true]);
    }
-   catch(Exception $e)
+   catch(Throwable $e)
    {
-    jsonError("ID destinatario non valido", 400, "INVALID_RECIPIENT");
+    http_response_code(500);
+    echo json_encode(["error" => "Errore database"]);
    }
-
-   break;
-
-  // PUT /api/messages/{id}/read - Segna un messaggio come letto
-  case "PUT":
-
-   if(!$id || $subresource !== "read")
-   {
-    jsonError("Endpoint non valido", 404, "NOT_FOUND");
-   }
-
-   try
-   {
-    $message_id = new MongoDB\BSON\ObjectId($id);
-
-    $result = $db->messages->updateOne(
-     ["_id" => $message_id, "to_user_id" => $current_user_id, "read" => false],
-     ['$set' => ["read" => true]]
-    );
-
-    jsonResponse(["success" => true, "modified_count" => $result->getModifiedCount()]);
-   }
-   catch(Exception $e)
-   {
-    jsonError("ID messaggio non valido", 400, "INVALID_ID");
-   }
-
-   break;
-
-  // DELETE /api/messages/{id} - Elimina un messaggio
-  case "DELETE":
-
-   if(!$id)
-   {
-    jsonError("ID messaggio richiesto", 400, "MISSING_ID");
-   }
-
-   try
-   {
-    $message_id = new MongoDB\BSON\ObjectId($id);
-
-    // Solo il mittente può eliminare il proprio messaggio
-    $result = $db->messages->deleteOne(
-    [
-     "_id"          => $message_id,
-     "from_user_id" => $current_user_id
-    ]);
-
-    if($result->getDeletedCount() === 0)
-    {
-     jsonError("Messaggio non trovato o non autorizzato", 404, "NOT_FOUND");
-    }
-
-    jsonResponse(["success" => true, "message" => "Messaggio eliminato"]);
-   }
-   catch(Exception $e)
-   {
-    jsonError("ID messaggio non valido", 400, "INVALID_ID");
-   }
-
-   break;
-
-  default:
-   jsonError("Metodo non supportato", 405, "METHOD_NOT_ALLOWED");
+  }
+  exit;
  }
-?>
+
+ // ─── PUT: segna messaggi come letti ──────────────────────────────────────────
+ if($method === "PUT")
+ {
+  $input    = getJsonInput();
+  $with_str = $input["conversation_with"] ?? "";
+
+  if(!$with_str || !verifyMatch($db, $current_user_id, $with_str))
+  {
+   http_response_code(403);
+   echo json_encode(["error" => "Accesso negato"]);
+   exit;
+  }
+
+  $other_id = new MongoDB\BSON\ObjectId($with_str);
+  $result   = $db->messages->updateMany(
+   ["from_user_id" => $other_id, "to_user_id" => $current_user_id, "read" => false],
+   ['$set' => ["read" => true]]
+  );
+
+  echo json_encode(["success" => true, "updated" => $result->getModifiedCount()]);
+  exit;
+ }
+
+ // ─── DELETE: elimina un proprio messaggio ─────────────────────────────────────
+ if($method === "DELETE")
+ {
+  $msg_id_str = $_GET["message_id"] ?? "";
+
+  if(!$msg_id_str)
+  {
+   http_response_code(400);
+   echo json_encode(["error" => "message_id richiesto"]);
+   exit;
+  }
+
+  try { $msg_id = new MongoDB\BSON\ObjectId($msg_id_str); }
+  catch(Exception $e)
+  {
+   http_response_code(400);
+   echo json_encode(["error" => "ID non valido"]);
+   exit;
+  }
+
+  $msg = $db->messages->findOne(["_id" => $msg_id, "from_user_id" => $current_user_id]);
+
+  if(!$msg)
+  {
+   http_response_code(404);
+   echo json_encode(["error" => "Messaggio non trovato"]);
+   exit;
+  }
+
+  if(isset($msg->image_path) && $msg->image_path)
+  {
+   $fp = __DIR__ . "/../" . $msg->image_path;
+   if(file_exists($fp)) unlink($fp);
+  }
+
+  $db->messages->deleteOne(["_id" => $msg_id]);
+  echo json_encode(["success" => true]);
+  exit;
+ }
+
+ http_response_code(405);
+ echo json_encode(["error" => "Metodo non supportato"]);

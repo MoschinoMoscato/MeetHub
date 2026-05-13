@@ -288,7 +288,8 @@
 
  $pref_min_age  = isset($preferences->min_age)  ? (int)$preferences->min_age  : 18;
  $pref_max_age  = isset($preferences->max_age)  ? (int)$preferences->max_age  : 99;
- $pref_max_dist = isset($preferences->max_dist) ? (int)$preferences->max_dist : 0;
+ $pref_max_dist    = isset($preferences->max_dist) ? (int)$preferences->max_dist : 0;
+ $location_enabled = $user->location_enabled ?? true;
 
  $interest_options         = ["Musica", "Gaming", "Cucina", "Viaggi", "Lettura", "Arte", "Sport", "Natura", "Animali", "Cinema", "Vino", "Yoga", "Danza", "Teatro", "Concerti", "Surf"];
  $selected_interest_filters = $_GET["interests"] ?? [];
@@ -351,8 +352,8 @@
  $profiles        = iterator_to_array($profiles_cursor, false);
  // Mostriamo solo profili completi; quelli incompleti vengono filtrati a monte
 
- // Filtra per distanza massima se le coordinate sono disponibili
- if($pref_max_dist > 0 && isset($user->lat, $user->lng) && is_numeric($user->lat) && is_numeric($user->lng))
+ // Filtra per distanza massima se la posizione è abilitata e le coordinate disponibili
+ if($location_enabled && $pref_max_dist > 0 && isset($user->lat, $user->lng) && is_numeric($user->lat) && is_numeric($user->lng))
  {
   $user_lat = (float)$user->lat;
   $user_lng = (float)$user->lng;
@@ -392,6 +393,12 @@
 
    <?php if($success !== ""){ ?>
     <div class="alert alert-success" style="position:absolute;top:1rem;left:50%;transform:translateX(-50%);z-index:30;"><?= htmlspecialchars($success) ?></div>
+   <?php } ?>
+
+   <?php if($location_enabled && $pref_max_dist > 0 && (!isset($user->lat) || !is_numeric($user->lat))){ ?>
+    <div id="loc-banner" style="position:absolute;top:1rem;left:50%;transform:translateX(-50%);z-index:30;background:rgba(30,20,50,.92);border:1px solid rgba(255,75,110,.3);color:#ccc;padding:.6rem 1.1rem;border-radius:10px;font-size:.82rem;white-space:nowrap;">
+     Posizione non disponibile — il filtro distanza è disattivato
+    </div>
    <?php } ?>
 
    <!--- FAB Filtri --->
@@ -687,7 +694,196 @@
     if(e.key === "ArrowRight") doAction("like");
    });
 
+   // ── Drag-to-swipe ──────────────────────────────────────────────────────────
+   (function()
+   {
+    var THRESHOLD = 100;
+    var MAX_ROT   = 18;
+
+    function initDrag(card, idx)
+    {
+     card.addEventListener("pointerdown", function(e)
+     {
+      if(isAnimating || currentIndex !== idx) return;
+      if(e.pointerType === "mouse" && e.button !== 0) return;
+
+      var startX  = e.clientX;
+      var startY  = e.clientY;
+      var ptrId   = e.pointerId;
+      var grabbed = false; // true once we confirm horizontal intent
+      var aborted = false;
+      var moved   = false;
+      var grabTop = (e.clientY - card.getBoundingClientRect().top) < card.offsetHeight / 2;
+
+      function onMove(ev)
+      {
+       if(aborted) return;
+       var dx = ev.clientX - startX;
+       var dy = ev.clientY - startY;
+
+       if(!grabbed)
+       {
+        // Wait for enough movement to determine direction
+        if(Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+
+        if(Math.abs(dy) > Math.abs(dx))
+        {
+         // Vertical — let the browser scroll the card
+         abort();
+         return;
+        }
+
+        // Horizontal confirmed: take over the gesture
+        card.setPointerCapture(ptrId);
+        card.style.touchAction = "none";
+        card.style.transition  = "none";
+        card.style.willChange  = "transform";
+        grabbed = true;
+       }
+
+       moved = true;
+       var rot = Math.max(-MAX_ROT, Math.min(MAX_ROT, (dx / THRESHOLD) * MAX_ROT * (grabTop ? 1 : -1)));
+       card.style.transform = "translateX(" + dx + "px) translateY(" + (dy * 0.12) + "px) rotate(" + rot + "deg)";
+      }
+
+      function onUp(ev)
+      {
+       cleanup();
+       card.style.touchAction = "";
+       card.style.willChange  = "";
+
+       if(!moved || aborted) { card.style.transition = ""; card.style.transform = ""; return; }
+
+       var dx = ev.clientX - startX;
+
+       if(Math.abs(dx) >= THRESHOLD)
+       {
+        var action = dx > 0 ? "like" : "reject";
+        var dir    = dx > 0 ? 1 : -1;
+        isAnimating = true;
+
+        if(currentIndex + 1 < cards.length)
+        {
+         cards[currentIndex + 1].classList.remove("next-up", "hidden-behind");
+         cards[currentIndex + 1].classList.add("active");
+        }
+        if(currentIndex + 2 < cards.length)
+        {
+         cards[currentIndex + 2].classList.remove("hidden-behind");
+         cards[currentIndex + 2].classList.add("next-up");
+        }
+
+        card.style.transition = "transform 0.42s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.42s ease";
+        card.style.transform  = "translateX(" + (dir * (window.innerWidth + 200)) + "px) rotate(" + (dir * MAX_ROT) + "deg)";
+        card.style.opacity    = "0";
+
+        sendAction(card.dataset.userId, action);
+        setTimeout(function()
+        {
+         card.style.display = "none";
+         currentIndex++;
+         isAnimating = false;
+         if(currentIndex >= cards.length) showEmptyState();
+        }, 420);
+       }
+       else
+       {
+        card.style.transition = "transform 0.5s cubic-bezier(0.175,0.885,0.32,1.275)";
+        card.style.transform  = "";
+        card.addEventListener("transitionend", function done()
+        {
+         card.style.transition = "";
+         card.removeEventListener("transitionend", done);
+        }, { once: true });
+       }
+      }
+
+      function onCancel()
+      {
+       abort();
+      }
+
+      function abort()
+      {
+       aborted = true;
+       cleanup();
+       card.style.touchAction = "";
+       card.style.transition  = "";
+       card.style.transform   = "";
+       card.style.willChange  = "";
+      }
+
+      function cleanup()
+      {
+       card.removeEventListener("pointermove",   onMove);
+       card.removeEventListener("pointerup",     onUp);
+       card.removeEventListener("pointercancel", onCancel);
+      }
+
+      card.addEventListener("pointermove",   onMove);
+      card.addEventListener("pointerup",     onUp);
+      card.addEventListener("pointercancel", onCancel);
+     });
+    }
+
+    window.initDragAll = function()
+    {
+     for(var i = 0; i < cards.length; i++) initDrag(cards[i], i);
+    };
+   })();
+
    initStack();
+   initDragAll();
+
+   // ── Geolocalizzazione ─────────────────────────────────────────────────────
+   (function()
+   {
+    if(!<?= $location_enabled ? 'true' : 'false' ?>) return;
+
+    function saveLocation(lat, lng)
+    {
+     var banner = document.getElementById("loc-banner");
+     if(banner) banner.remove();
+
+     var fd = new FormData();
+     fd.append("lat", lat);
+     fd.append("lng", lng);
+     var xhr = new XMLHttpRequest();
+     xhr.open("POST", "api/location.php");
+     xhr.send(fd);
+    }
+
+    function ipFallback()
+    {
+     // Fallback via IP (funziona anche su HTTP) — accuratezza ~città
+     var xhr = new XMLHttpRequest();
+     xhr.open("GET", "https://ipapi.co/json/");
+     xhr.onreadystatechange = function()
+     {
+      if(xhr.readyState !== 4 || xhr.status !== 200) return;
+      try
+      {
+       var r = JSON.parse(xhr.responseText);
+       if(r.latitude && r.longitude) saveLocation(r.latitude, r.longitude);
+      }
+      catch(e) {}
+     };
+     xhr.send();
+    }
+
+    if(navigator.geolocation)
+    {
+     navigator.geolocation.getCurrentPosition(
+      function(pos) { saveLocation(pos.coords.latitude, pos.coords.longitude); },
+      function()    { ipFallback(); }, // GPS negato o bloccato (HTTP) → IP
+      { timeout: 8000, maximumAge: 300000 }
+     );
+    }
+    else
+    {
+     ipFallback(); // browser senza geolocation API → IP diretto
+    }
+   })();
   </script>
  </body>
 </html>

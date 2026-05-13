@@ -1,13 +1,15 @@
 FROM dunglas/frankenphp:php8.3
 
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
 RUN install-php-extensions mongodb
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
-COPY composer.* ./
-RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+COPY composer.json ./
+RUN composer update --no-dev --prefer-dist --no-interaction --optimize-autoloader
 
 COPY . .
 

@@ -29,7 +29,7 @@
    }
    catch(Exception $e)
    {
-    die(json_encode(["error" => "Database connection failed: " . $e->getMessage()]));
+    die(json_encode(["error" => "Errore di connessione al database."]));
    }
   }
 

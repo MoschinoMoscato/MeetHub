@@ -144,9 +144,8 @@
      </div>
      <div class="lp-feature-card">
       <div class="lp-feature-icon">📍</div>
-      <h3>Vicini a te‡</h3>
+      <h3>Vicini a te</h3>
       <p>Troviamo persone nella tua zona. Abbastanza vicine per un caffè. Abbastanza lontane da avere una via di fuga dignitosa.</p>
-      <span class="lp-footnote">‡Dipende dal GPS e dall'umore</span>
      </div>
     </div>
    </div>

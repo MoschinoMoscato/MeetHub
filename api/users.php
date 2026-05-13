@@ -92,12 +92,12 @@
       $distance = round($distance, 1);
      }
 
-     // Filtro distanza massima (post-processing)
+     // Filtro distanza massima
      $max_dist = $preferences->max_dist ?? 0;
 
      if($max_dist > 0 && $distance !== null && $distance > $max_dist)
      {
-      continue;// Salta i profili troppo distanti
+      continue;
      }
 
      $users_array[] =
@@ -111,8 +111,8 @@
       "profile_image" => $u->profile_image ?? null,
       "interests"     => $u->interests ?? [],
       "traits"        => $u->traits    ?? [],
-      "distance"      => $distance,
-      "height"        => $u->height    ?? null
+      "height"        => $u->height    ?? null,
+      "distance"      => $distance
      ];
     }
 
@@ -314,30 +314,6 @@
     ]);
    }
 
-   // POST /api/users/update-location - Aggiorna posizione GPS
-   elseif($id === "update-location")
-   {
-    $input = getJsonInput();
-    $lat   = $input["lat"] ?? null;
-    $lng   = $input["lng"] ?? null;
-
-    if($lat === null || $lng === null)
-    {
-     jsonError("Latitudine e longitudine richieste", 400, "MISSING_COORDINATES");
-    }
-
-    if(!is_numeric($lat) || !is_numeric($lng) || $lat < -90 || $lat > 90 || $lng < -180 || $lng > 180)
-    {
-     jsonError("Coordinate non valide", 400, "INVALID_COORDINATES");
-    }
-
-    $db->users->updateOne(
-     ["_id" => $current_user_id],
-     ['$set' => ["lat" => (float)$lat, "lng" => (float)$lng, "updated_at" => new MongoDB\BSON\UTCDateTime()]]
-    );
-
-    jsonResponse(["success" => true, "message" => "Posizione aggiornata"]);
-   }
    else
    {
     jsonError("Endpoint non trovato", 404, "NOT_FOUND");

@@ -288,8 +288,7 @@
 
  $pref_min_age  = isset($preferences->min_age)  ? (int)$preferences->min_age  : 18;
  $pref_max_age  = isset($preferences->max_age)  ? (int)$preferences->max_age  : 99;
- $pref_max_dist    = isset($preferences->max_dist) ? (int)$preferences->max_dist : 0;
- $location_enabled = $user->location_enabled ?? true;
+ $pref_max_dist = isset($preferences->max_dist) ? (int)$preferences->max_dist : 0;
 
  $interest_options         = ["Musica", "Gaming", "Cucina", "Viaggi", "Lettura", "Arte", "Sport", "Natura", "Animali", "Cinema", "Vino", "Yoga", "Danza", "Teatro", "Concerti", "Surf"];
  $selected_interest_filters = $_GET["interests"] ?? [];
@@ -352,8 +351,8 @@
  $profiles        = iterator_to_array($profiles_cursor, false);
  // Mostriamo solo profili completi; quelli incompleti vengono filtrati a monte
 
- // Filtra per distanza massima se la posizione è abilitata e le coordinate disponibili
- if($location_enabled && $pref_max_dist > 0 && isset($user->lat, $user->lng) && is_numeric($user->lat) && is_numeric($user->lng))
+ // Filtra per distanza massima se le coordinate sono disponibili
+ if($pref_max_dist > 0 && isset($user->lat, $user->lng) && is_numeric($user->lat) && is_numeric($user->lng))
  {
   $user_lat = (float)$user->lat;
   $user_lng = (float)$user->lng;
@@ -361,12 +360,8 @@
   $profiles = array_values(array_filter($profiles, function($profile) use ($user_lat, $user_lng, $pref_max_dist)
   {
    if(!isset($profile->lat, $profile->lng) || !is_numeric($profile->lat) || !is_numeric($profile->lng))
-   {
-    return false;
-   }
-
-   $distance = haversineDistance($user_lat, $user_lng, (float)$profile->lat, (float)$profile->lng);
-   return $distance <= $pref_max_dist;
+    return true;
+   return haversineDistance($user_lat, $user_lng, (float)$profile->lat, (float)$profile->lng) <= $pref_max_dist;
   }));
  }
 ?>
@@ -393,12 +388,6 @@
 
    <?php if($success !== ""){ ?>
     <div class="alert alert-success" style="position:absolute;top:1rem;left:50%;transform:translateX(-50%);z-index:30;"><?= htmlspecialchars($success) ?></div>
-   <?php } ?>
-
-   <?php if($location_enabled && $pref_max_dist > 0 && (!isset($user->lat) || !is_numeric($user->lat))){ ?>
-    <div id="loc-banner" style="position:absolute;top:1rem;left:50%;transform:translateX(-50%);z-index:30;background:rgba(30,20,50,.92);border:1px solid rgba(255,75,110,.3);color:#ccc;padding:.6rem 1.1rem;border-radius:10px;font-size:.82rem;white-space:nowrap;">
-     Posizione non disponibile — il filtro distanza è disattivato
-    </div>
    <?php } ?>
 
    <!--- FAB Filtri --->
@@ -824,55 +813,6 @@
    initStack();
    initDragAll();
 
-   // ── Geolocalizzazione ─────────────────────────────────────────────────────
-   (function()
-   {
-    if(!<?= $location_enabled ? 'true' : 'false' ?>) return;
-
-    function saveLocation(lat, lng)
-    {
-     var banner = document.getElementById("loc-banner");
-     if(banner) banner.remove();
-
-     var fd = new FormData();
-     fd.append("lat", lat);
-     fd.append("lng", lng);
-     var xhr = new XMLHttpRequest();
-     xhr.open("POST", "api/location.php");
-     xhr.send(fd);
-    }
-
-    function ipFallback()
-    {
-     // Fallback via IP (funziona anche su HTTP) — accuratezza ~città
-     var xhr = new XMLHttpRequest();
-     xhr.open("GET", "https://ipapi.co/json/");
-     xhr.onreadystatechange = function()
-     {
-      if(xhr.readyState !== 4 || xhr.status !== 200) return;
-      try
-      {
-       var r = JSON.parse(xhr.responseText);
-       if(r.latitude && r.longitude) saveLocation(r.latitude, r.longitude);
-      }
-      catch(e) {}
-     };
-     xhr.send();
-    }
-
-    if(navigator.geolocation)
-    {
-     navigator.geolocation.getCurrentPosition(
-      function(pos) { saveLocation(pos.coords.latitude, pos.coords.longitude); },
-      function()    { ipFallback(); }, // GPS negato o bloccato (HTTP) → IP
-      { timeout: 8000, maximumAge: 300000 }
-     );
-    }
-    else
-    {
-     ipFallback(); // browser senza geolocation API → IP diretto
-    }
-   })();
   </script>
  </body>
 </html>

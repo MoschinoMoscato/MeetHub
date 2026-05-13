@@ -33,7 +33,7 @@
    <div class="lp-hero-inner">
 
     <div class="lp-hero-left">
-     <div class="lp-tag">TROVATA LA SOLITUDINE? POVERINA.</div>
+     <div class="lp-tag">BASTA APERITIVI DA SOLO</div>
      <h1 class="lp-hero-h1">
       Il tuo<br>
       prossimo<br>
@@ -91,7 +91,7 @@
    </div>
    <div class="lp-stat">
     <div class="lp-stat-num">2.1</div>
-    <div class="lp-stat-lbl">match medi per utente<small>prima di disinstallare e reinstallare l'app</small></div>
+    <div class="lp-stat-lbl">match medi per utente<small>poi si arrendono e tornano su Netflix</small></div>
    </div>
    <div class="lp-stat">
     <div class="lp-stat-num">0</div>

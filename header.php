@@ -258,17 +258,16 @@ function adjustBadge(n)
  else badge.textContent = count > 9 ? "9+" : String(count);
 }
 
-// ── Polling notifiche ogni 5 secondi ─────────────────────────────────────────
-(function()
-{
- function _esc(s)
- {
-  return String(s || "")
-   .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
- }
+// ── Notifiche: funzioni globali (usate anche da discover.php) ────────────────
 
- function syncBadge(total)
- {
+function _notifEsc(s)
+{
+ return String(s || "")
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function syncBadge(total)
+{
   var btn   = document.getElementById("notif-btn");
   var badge = document.getElementById("notif-badge");
 
@@ -348,7 +347,7 @@ function adjustBadge(n)
 
     var body = document.createElement("div");
     body.className = "notif-item-body";
-    body.innerHTML = "<strong>" + _esc(mi.name) + "</strong><span>Nuovo match! 🎉</span>";
+    body.innerHTML = "<strong>" + _notifEsc(mi.name) + "</strong><span>Nuovo match! 🎉</span>";
 
     var dot = document.createElement("div");
     dot.className = "notif-item-dot";
@@ -386,7 +385,7 @@ function adjustBadge(n)
 
     var mbody = document.createElement("div");
     mbody.className = "notif-item-body";
-    mbody.innerHTML = "<strong>" + _esc(mi.name) + "</strong><span>" + mi.count + " messagg" + (mi.count === 1 ? "io" : "i") + " non lett" + (mi.count === 1 ? "o" : "i") + "</span>";
+    mbody.innerHTML = "<strong>" + _notifEsc(mi.name) + "</strong><span>" + mi.count + " messagg" + (mi.count === 1 ? "io" : "i") + " non lett" + (mi.count === 1 ? "o" : "i") + "</span>";
 
     var mdot = document.createElement("div");
     mdot.className = "notif-item-dot";
@@ -422,7 +421,36 @@ function adjustBadge(n)
  }
 
  setInterval(pollNotifications, 5000);
-})();
+
+// Apre il pannello notifiche aggiornandolo prima (chiamabile da altre pagine)
+function openNotifPanel()
+{
+ var panel = document.getElementById("notif-panel");
+ var btn   = document.getElementById("notif-btn");
+ if(!panel) return;
+
+ var xhr = new XMLHttpRequest();
+ xhr.open("GET", "api/notifications.php");
+ xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+ xhr.onreadystatechange = function()
+ {
+  if(xhr.readyState !== XMLHttpRequest.DONE) return;
+  try
+  {
+   if(xhr.status === 200)
+   {
+    var r = JSON.parse(xhr.responseText);
+    if(r.success) { syncBadge(r.total); syncPanel(r); }
+   }
+  }
+  catch(e) {}
+  panel.classList.add("open");
+  if(btn) btn.classList.add("open");
+ };
+
+ xhr.send();
+}
 
 // Click su una notifica match: segna come vista e naviga
 function dismissMatch(e, el)

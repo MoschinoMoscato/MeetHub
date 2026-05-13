@@ -88,6 +88,9 @@
  </head>
 
  <body>
+  <header class="lp-header scrolled">
+   <a class="lp-logo" href="index.php">MeetHub</a>
+  </header>
   <div class="page-wrapper">
    <div class="auth-container">
 
@@ -99,7 +102,7 @@
 
     <div class="auth-form-side">
      <div style="max-width:460px; width:100%">
-      <a href="index.php" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna al login</a>
+      <a href="login.php" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna al login</a>
 
       <h2>Registrati</h2>
       <p class="subtitle">Unisciti a migliaia di persone che cercano amore</p>
@@ -145,7 +148,7 @@
       </form>
 
       <p class="text-center mt-3 text-muted" style="font-size:0.85rem">
-       Hai già un account? <a href="index.php">Accedi</a>
+       Hai già un account? <a href="login.php">Accedi</a>
       </p>
      </div>
     </div>

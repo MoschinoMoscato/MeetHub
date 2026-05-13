@@ -469,11 +469,7 @@ img.app-header-avatar
  margin: 0.4rem 0.5rem;
 }
 
-@media screen and (max-width: 600px)
-{
- .app-header-username { display: none; }
- .app-nav-link        { padding: 0.4rem 0.7rem; font-size: 0.82rem; }
-}
+/* (regola accorpata nel blocco responsive in fondo) */
 
 /* ============================================================================================
                                          TIPOGRAFIA
@@ -1467,6 +1463,7 @@ input[type="range"]::-webkit-slider-thumb
 
 .chat-header
 {
+ flex-shrink: 0;
  display: flex;
  align-items: center;
  gap: 1rem;
@@ -1474,6 +1471,25 @@ input[type="range"]::-webkit-slider-thumb
  background: var(--card);
  border-bottom: 1px solid var(--border);
 }
+
+/* Bottone ← torna alla lista (visibile solo su mobile via media query) */
+.chat-back-btn
+{
+ display: none;
+ align-items: center;
+ justify-content: center;
+ width: 34px;
+ height: 34px;
+ border-radius: 50%;
+ background: rgba(255,255,255,0.08);
+ color: var(--text);
+ text-decoration: none;
+ font-size: 1.25rem;
+ line-height: 1;
+ flex-shrink: 0;
+ transition: background 0.15s;
+}
+.chat-back-btn:hover { background: rgba(255,255,255,0.16); }
 
 .messages-area
 {
@@ -1489,10 +1505,17 @@ input[type="range"]::-webkit-slider-thumb
 .message
 {
  max-width: 65%;
+ display: flex;
+ align-items: flex-end;
+ gap: 5px;
 }
 
 .message.sent     { align-self: flex-end; }
 .message.received { align-self: flex-start; }
+
+.msg-content { display: flex; flex-direction: column; min-width: 0; }
+.message.sent     .msg-content { align-items: flex-end; }
+.message.received .msg-content { align-items: flex-start; }
 
 .message-bubble
 {
@@ -1847,27 +1870,113 @@ input[type="range"]::-webkit-slider-thumb
                                                                          MOBILE
    ======================================================================================================================================================================================== */
 
+/* ============================================================================================
+                                     RESPONSIVE MOBILE
+   ============================================================================================ */
+
+/* ── Auth: nascondi hero su schermi stretti ──────────────────────────────── */
 @media screen and (max-width: 900px)
 {
- .auth-container                { grid-template-columns: 1fr; }
- .auth-hero                     { display: none; }
- .auth-form-side                { padding: 2rem; }
- .discover-layout               { grid-template-columns: 1fr; }
- .filters-panel                 { position: static; }
- .chat-layout                   { grid-template-columns: 1fr; }
- .chat-sidebar                  { display: none; }
+ .auth-container { grid-template-columns: 1fr; }
+ .auth-hero      { display: none; }
+ .auth-form-side { padding: 2.5rem 2rem; }
 }
 
-@media screen and (max-width: 600px)
+/* ── Tablet / mobile ≤ 768px ─────────────────────────────────────────────── */
+@media screen and (max-width: 768px)
 {
- .navbar         { padding: 1rem; }
- .discover-stage { padding: 0.75rem; }
- .card-stack     { width: 100%; height: calc(100vh - 170px); }
- .card-name      { font-size: 1.75rem; }
- .action-btn     { width: 60px; height: 60px; }
- .action-btn svg { width: 24px; height: 24px; }
- .card-actions   { gap: 1.75rem; }
- .app-notif-panel { width: calc(100vw - 2rem); right: -1rem; }
+ /* Header */
+ .app-header-inner    { padding: 0 1rem; }
+ .app-header-username { display: none; }
+ .app-nav-link        { padding: 0.4rem 0.6rem; font-size: 0.82rem; }
+
+ /* Pannello notifiche: fisso sotto l'header, sempre nel viewport */
+ .app-notif-panel
+ {
+  position: fixed;
+  top: 64px;
+  left: 0.5rem;
+  right: 0.5rem;
+  width: auto;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  transform-origin: top center;
+  overscroll-behavior: contain;
+ }
+
+ /* Chat: sidebar e main a schermo intero, alternati */
+ .chat-layout
+ {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding-top: 64px;
+ }
+
+ /* Di default mostra la lista contatti */
+ .chat-sidebar
+ {
+  display: block;
+  flex: 1;
+  overflow-y: auto;
+ }
+
+ .chat-main { display: none; }
+
+ /* Con chat attiva: nascondi lista, mostra conversazione */
+ .chat-layout.has-active-chat .chat-sidebar { display: none; }
+ .chat-layout.has-active-chat .chat-main
+ {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+ }
+
+ /* Bottone ← visibile solo su mobile */
+ .chat-back-btn { display: flex; }
+
+ /* Filtri discover: full-width fisso */
+ .discover-filter-popover
+ {
+  position: fixed;
+  top: 64px;
+  left: 0.75rem;
+  right: 0.75rem;
+  width: auto;
+  max-width: 100%;
+  border-radius: 18px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  transform-origin: top center;
+ }
+}
+
+/* ── Mobile stretto ≤ 480px ──────────────────────────────────────────────── */
+@media screen and (max-width: 480px)
+{
+ /* Discover */
+ .discover-stage  { padding: 0.6rem; row-gap: 0.75rem; }
+ .card-stack      { width: 100%; height: calc(100dvh - 185px); }
+ .card-name       { font-size: 1.65rem; }
+ .action-btn      { width: 56px; height: 56px; }
+ .action-btn svg  { width: 22px; height: 22px; }
+ .card-actions    { gap: 1.5rem; }
+ .navbar          { padding: 1rem; }
+
+ /* Chat */
+ .message         { max-width: 85%; }
+ .messages-area   { padding: 0.85rem; gap: 0.5rem; }
+ .chat-input-area { padding: 0.6rem 0.75rem; gap: 0.5rem; }
+ .chat-header     { padding: 0.75rem 1rem; gap: 0.75rem; }
+
+ /* Pannello profilo slide-in */
+ .user-profile-modal-box { width: 100vw; border-left: none; }
+ .chat-image              { max-width: 180px; max-height: 240px; }
+
+ /* Notifiche: ancora più compatte */
+ .notif-item { padding: 0.5rem 0.55rem; gap: 0.5rem; }
 }
 
 /* ============================================================================================
@@ -2225,29 +2334,63 @@ input[type="range"]::-webkit-slider-thumb
 
 .chat-img-cancel:hover { background: rgba(255,75,110,0.4); }
 
-/* Pulsante elimina messaggio (appare su hover) */
-.msg-delete-btn
+/* Azioni messaggio (modifica + elimina, appaiono su hover) */
+.msg-actions
 {
- display: none;
- position: absolute;
- top: 0;
- left: -26px;
- width: 20px;
- height: 20px;
- border-radius: 50%;
- background: rgba(255,75,110,0.75);
- border: none;
- color: white;
- font-size: 0.8rem;
- cursor: pointer;
- align-items: center;
- justify-content: center;
- line-height: 1;
- transition: background 0.15s;
+ display: flex;
+ flex-direction: column;
+ gap: 4px;
+ opacity: 0;
+ pointer-events: none;
+ transition: opacity 0.15s;
+ flex-shrink: 0;
 }
 
-.message.sent:hover .msg-delete-btn { display: flex; }
-.msg-delete-btn:hover { background: var(--coral); }
+.message.sent:hover .msg-actions { opacity: 1; pointer-events: auto; }
+
+.msg-action-btn
+{
+ width: 26px;
+ height: 26px;
+ border-radius: 50%;
+ border: none;
+ cursor: pointer;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ font-size: 0.78rem;
+ background: rgba(255,255,255,0.1);
+ color: rgba(255,255,255,0.65);
+ transition: background 0.15s, color 0.15s;
+ flex-shrink: 0;
+ padding: 0;
+ line-height: 1;
+}
+
+.msg-action-btn:hover { background: rgba(255,255,255,0.22); color: #fff; }
+.msg-del-btn:hover    { background: rgba(255,75,110,0.85) !important; color: #fff; }
+
+.msg-edit-input
+{
+ background: rgba(255,255,255,0.15);
+ border: 1px solid rgba(255,255,255,0.3);
+ border-radius: 8px;
+ color: #fff;
+ padding: 4px 8px;
+ font-size: 0.9rem;
+ font-family: inherit;
+ outline: none;
+ width: 100%;
+ min-width: 80px;
+}
+
+.msg-edited-tag
+{
+ font-size: 0.62rem;
+ color: rgba(255,255,255,0.35);
+ font-style: italic;
+ margin-top: 2px;
+}
 
 /* ============================================================================================
                                PANNELLO PROFILO UTENTE (slide-in)
@@ -2301,6 +2444,23 @@ input[type="range"]::-webkit-slider-thumb
 }
 
 /* Elementi interni del pannello profilo */
+.upm-back-btn
+{
+ display: inline-flex;
+ align-items: center;
+ gap: 0.4rem;
+ color: var(--text-muted);
+ background: none;
+ border: none;
+ cursor: pointer;
+ font-size: 0.95rem;
+ padding: 0.25rem 0;
+ margin-bottom: 1.25rem;
+ transition: color 0.15s;
+}
+
+.upm-back-btn:hover { color: var(--coral); }
+
 .upm-close
 {
  position: absolute;
@@ -2536,6 +2696,7 @@ input[type="range"]::-webkit-slider-thumb
  z-index: 200;
  display: flex;
  align-items: center;
+ justify-content: space-between;
  padding: 1.1rem 2.5rem;
  transition: background .3s, backdrop-filter .3s, border-color .3s;
  border-bottom: 1px solid transparent;

@@ -67,7 +67,8 @@
     "type"       => $msg->type ?? "text",
     "text"       => $msg->text ?? null,
     "image_path" => $msg->image_path ?? null,
-    "read"       => $msg->read ?? false
+    "read"       => $msg->read ?? false,
+    "edited"     => $msg->edited ?? false
    ];
   }
 
@@ -191,10 +192,65 @@
   exit;
  }
 
- // ─── PUT: segna messaggi come letti ──────────────────────────────────────────
+ // ─── PUT: modifica messaggio o segna come letto ──────────────────────────────
  if($method === "PUT")
  {
-  $input    = getJsonInput();
+  $input = getJsonInput();
+
+  // Modifica testo di un messaggio
+  if(isset($input["message_id"]))
+  {
+   $msg_id_str = $input["message_id"] ?? "";
+   $new_text   = trim($input["text"]       ?? "");
+
+   if(!$msg_id_str || $new_text === "")
+   {
+    http_response_code(400);
+    echo json_encode(["error" => "Dati mancanti"]);
+    exit;
+   }
+
+   if(mb_strlen($new_text) > 1000)
+   {
+    http_response_code(400);
+    echo json_encode(["error" => "Messaggio troppo lungo"]);
+    exit;
+   }
+
+   try { $msg_id = new MongoDB\BSON\ObjectId($msg_id_str); }
+   catch(Exception $e)
+   {
+    http_response_code(400);
+    echo json_encode(["error" => "ID non valido"]);
+    exit;
+   }
+
+   $msg = $db->messages->findOne(["_id" => $msg_id, "from_user_id" => $current_user_id, "type" => "text"]);
+
+   if(!$msg)
+   {
+    http_response_code(404);
+    echo json_encode(["error" => "Messaggio non trovato"]);
+    exit;
+   }
+
+   try
+   {
+    $db->messages->updateOne(
+     ["_id" => $msg_id],
+     ['$set' => ["text" => $new_text, "edited" => true, "edited_at" => new MongoDB\BSON\UTCDateTime()]]
+    );
+    echo json_encode(["success" => true]);
+   }
+   catch(Throwable $e)
+   {
+    http_response_code(500);
+    echo json_encode(["error" => "Errore database"]);
+   }
+   exit;
+  }
+
+  // Segna messaggi come letti
   $with_str = $input["conversation_with"] ?? "";
 
   if(!$with_str || !verifyMatch($db, $current_user_id, $with_str))

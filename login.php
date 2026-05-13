@@ -36,6 +36,9 @@
  </head>
 
  <body>
+  <header class="lp-header scrolled">
+   <a class="lp-logo" href="index.php">MeetHub</a>
+  </header>
   <div class="page-wrapper">
    <div class="auth-container">
 

@@ -655,18 +655,7 @@
 
    function showMatchNotification()
    {
-    var n        = document.createElement("div");
-    n.className  = "match-notification";
-    n.innerHTML  = "È un match! <a href=\"chat.php\">Vai alla chat →</a>";
-    n.onclick    = function() { window.location.href = "chat.php"; };
-    document.body.appendChild(n);
-
-    setTimeout(function()
-    {
-     n.style.transition = "opacity 0.3s";
-     n.style.opacity    = "0";
-     setTimeout(function() { n.remove(); }, 300);
-    }, 5000);
+    if(typeof openNotifPanel === "function") openNotifPanel();
    }
 
    function toggleFilters(e)

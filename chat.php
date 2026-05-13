@@ -50,6 +50,7 @@
  }
 
  $selected_chat_id = $_GET["chat"] ?? "";
+ $has_chat         = isset($_GET["chat"]) && $_GET["chat"] !== "" ? "has-active-chat" : "";
  $selected_user    = null;
 
  if($selected_chat_id && isset($matched_users[$selected_chat_id]))
@@ -115,13 +116,13 @@
    .read-status       { color: var(--coral); }
    .delivered-status  { color: var(--success); }
    #message-input     { flex: 1; }
-   .message           { max-width: 65%; position: relative; }
+   .message           { max-width: 65%; }
   </style>
  </head>
 
  <body>
   <?php require "header.php"; ?>
-  <div class="chat-layout">
+  <div class="chat-layout <?= $has_chat ?>">
 
    <!-- Sidebar: lista match -->
    <aside class="chat-sidebar">
@@ -159,6 +160,7 @@
 
      <!-- Header: cliccabile per vedere il profilo -->
      <div class="chat-header chat-header--clickable" id="chat-header-btn" title="Visualizza profilo">
+      <a class="chat-back-btn" href="chat.php" title="Torna alla lista" onclick="event.stopPropagation()">&#8249;</a>
       <div class="chat-contact-avatar">
        <?php if(!empty($selected_user->profile_image)){ ?>
         <img class="avatar-image" src="<?= htmlspecialchars($selected_user->profile_image) ?>" alt="">
@@ -185,23 +187,33 @@
        <?php foreach($messages as $msg){ ?>
         <?php $is_sent = ((string)$msg->from_user_id === (string)$current_user_id); ?>
         <div class="message <?= $is_sent ? "sent" : "received" ?>" data-id="<?= (string)$msg->_id ?>">
-         <?php if(($msg->type ?? "text") === "image" && !empty($msg->image_path)){ ?>
-          <div class="message-bubble message-bubble--img">
-           <img class="chat-image" src="<?= htmlspecialchars($msg->image_path) ?>" alt="Immagine" loading="lazy">
-          </div>
-         <?php } else { ?>
-          <div class="message-bubble"><?= nl2br(htmlspecialchars($msg->text ?? "")) ?></div>
-         <?php } ?>
          <?php if($is_sent){ ?>
-          <div class="message-status">
-           <?php if(isset($msg->read) && $msg->read){ ?>
-            <span class="read-status">✓✓ Letto</span>
-           <?php } else { ?>
-            <span class="delivered-status">✓✓ Consegnato</span>
+          <div class="msg-actions">
+           <?php if(($msg->type ?? "text") === "text"){ ?>
+            <button class="msg-action-btn msg-edit-btn" onclick="editMessage('<?= (string)$msg->_id ?>', this)" title="Modifica">✏</button>
            <?php } ?>
+           <button class="msg-action-btn msg-del-btn" onclick="deleteMessage('<?= (string)$msg->_id ?>', this.closest('.message'))" title="Elimina">×</button>
           </div>
-          <button class="msg-delete-btn" onclick="deleteMessage('<?= (string)$msg->_id ?>', this.closest('.message'))">×</button>
          <?php } ?>
+         <div class="msg-content">
+          <?php if(($msg->type ?? "text") === "image" && !empty($msg->image_path)){ ?>
+           <div class="message-bubble message-bubble--img">
+            <img class="chat-image" src="<?= htmlspecialchars($msg->image_path) ?>" alt="Immagine" loading="lazy">
+           </div>
+          <?php } else { ?>
+           <div class="message-bubble"><?= nl2br(htmlspecialchars($msg->text ?? "")) ?></div>
+           <?php if(!empty($msg->edited)){ ?><span class="msg-edited-tag">modificato</span><?php } ?>
+          <?php } ?>
+          <?php if($is_sent){ ?>
+           <div class="message-status">
+            <?php if(isset($msg->read) && $msg->read){ ?>
+             <span class="read-status">✓✓ Letto</span>
+            <?php } else { ?>
+             <span class="delivered-status">✓✓ Consegnato</span>
+            <?php } ?>
+           </div>
+          <?php } ?>
+         </div>
         </div>
        <?php } ?>
       <?php } ?>
@@ -316,6 +328,17 @@
 
      html += '<div class="message ' + (is_sent ? "sent" : "received") + '" data-id="' + escapeHtml(msg.id) + '">';
 
+     if(is_sent)
+     {
+      html += '<div class="msg-actions">';
+      if(msg.type !== "image")
+       html += '<button class="msg-action-btn msg-edit-btn" onclick="editMessage(\'' + escapeHtml(msg.id) + '\', this)" title="Modifica">&#9999;</button>';
+      html += '<button class="msg-action-btn msg-del-btn" onclick="deleteMessage(\'' + escapeHtml(msg.id) + '\', this.closest(\'.message\'))" title="Elimina">&#215;</button>';
+      html += '</div>';
+     }
+
+     html += '<div class="msg-content">';
+
      if(msg.type === "image" && msg.image_path)
      {
       html += '<div class="message-bubble message-bubble--img">';
@@ -325,6 +348,7 @@
      else
      {
       html += '<div class="message-bubble">' + nl2brJs(escapeHtml(msg.text || "")) + '</div>';
+      if(msg.edited) html += '<span class="msg-edited-tag">modificato</span>';
      }
 
      if(is_sent)
@@ -334,10 +358,10 @@
        ? '<span class="read-status">&#10003;&#10003; Letto</span>'
        : '<span class="delivered-status">&#10003;&#10003; Consegnato</span>';
       html += '</div>';
-      html += '<button class="msg-delete-btn" onclick="deleteMessage(\'' + escapeHtml(msg.id) + '\', this.closest(\'.message\'))">&#215;</button>';
      }
 
-     html += '</div>';
+     html += '</div>'; // .msg-content
+     html += '</div>'; // .message
     }
 
     return html;
@@ -348,6 +372,7 @@
    function loadMessages()
    {
     if(!messages_area || !recipient_id) return;
+    if(messages_area.querySelector(".msg-edit-input")) return;
 
     var xhr = new XMLHttpRequest();
     xhr.open("GET", "api/messages.php?conversation_with=" + encodeURIComponent(recipient_id));
@@ -502,6 +527,90 @@
     xhr.send();
    }
 
+   // ── Modifica messaggio via REST API (PUT) ────────────────────────────────────
+
+   function editMessage(msg_id, btn)
+   {
+    var msg_el  = btn.closest(".message");
+    var bubble  = msg_el.querySelector(".message-bubble");
+    if(!bubble || bubble.querySelector(".msg-edit-input")) return;
+
+    var original_html = bubble.innerHTML;
+    var original_text = bubble.textContent.trim();
+
+    var input         = document.createElement("input");
+    input.type        = "text";
+    input.className   = "msg-edit-input";
+    input.value       = original_text;
+    bubble.innerHTML  = "";
+    bubble.appendChild(input);
+    input.focus();
+    input.select();
+
+    var done = false;
+
+    function cancel()
+    {
+     if(done) return;
+     done = true;
+     bubble.innerHTML = original_html;
+    }
+
+    function save()
+    {
+     if(done) return;
+     var new_text = input.value.trim();
+     if(!new_text || new_text === original_text) { cancel(); return; }
+     done = true;
+
+     var xhr = new XMLHttpRequest();
+     xhr.open("PUT", "api/messages.php");
+     xhr.setRequestHeader("Content-Type", "application/json");
+     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+     xhr.onreadystatechange = function()
+     {
+      if(xhr.readyState !== XMLHttpRequest.DONE) return;
+      if(xhr.status === 401) { handleSessionExpired(); return; }
+
+      if(xhr.status === 200)
+      {
+       try
+       {
+        var r = JSON.parse(xhr.responseText);
+        if(r.success)
+        {
+         bubble.innerHTML = nl2brJs(escapeHtml(new_text));
+         if(!msg_el.querySelector(".msg-edited-tag"))
+         {
+          var tag = document.createElement("span");
+          tag.className   = "msg-edited-tag";
+          tag.textContent = "modificato";
+          bubble.insertAdjacentElement("afterend", tag);
+         }
+        }
+        else { bubble.innerHTML = original_html; }
+       }
+       catch(e) { bubble.innerHTML = original_html; }
+      }
+      else { bubble.innerHTML = original_html; }
+     };
+
+     xhr.send(JSON.stringify({ message_id: msg_id, text: new_text }));
+    }
+
+    input.addEventListener("keydown", function(e)
+    {
+     if(e.key === "Enter")  { e.preventDefault(); save(); }
+     if(e.key === "Escape") { cancel(); }
+    });
+
+    input.addEventListener("blur", function()
+    {
+     setTimeout(function() { cancel(); }, 200);
+    });
+   }
+
    // ── Gestione anteprima immagine ───────────────────────────────────────────────
 
    function clearImagePreview()
@@ -565,7 +674,7 @@
 
    function renderProfile(user)
    {
-    var html = '<button class="upm-close" onclick="closeProfile()">&#215;</button>';
+    var html = '<button class="upm-back-btn" onclick="closeProfile()">&#8249; Indietro</button>';
 
     html += '<div class="upm-photo' + (!user.profile_image ? " upm-photo-placeholder" : "") + '">';
     if(user.profile_image)

@@ -1,0 +1,5 @@
+@'
+vendor
+.git
+node_modules
+'@ | Set-Content -Encoding UTF8 .dockerignore

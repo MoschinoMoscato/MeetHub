@@ -1,4 +1,3 @@
-@'
 FROM dunglas/frankenphp:php8.3
 
 RUN install-php-extensions mongodb
@@ -15,4 +14,3 @@ COPY . .
 EXPOSE 8080
 
 CMD ["frankenphp", "php-server", "--listen", ":8080", "--root", "/app"]
-'@ | Set-Content -Encoding UTF8 Dockerfile

@@ -3,9 +3,9 @@
  define("APP_NAME", "MeetHub");
  define("APP_VERSION", "1.0.0");
 
- // Configurazione MongoDB
- define("MONGO_HOST", "mongodb://10.10.13.2:27017");
- define("MONGO_DB", "Meethub");
+ // Configurazione MongoDB (usa variabile d'ambiente su Railway, fallback locale)
+ define("MONGO_HOST", getenv("MONGO_HOST") ?: "mongodb://10.10.13.2:27017");
+ define("MONGO_DB",   getenv("MONGO_DB")   ?: "Meethub");
 
  // Durata sessione
  ini_set("session.cookie_lifetime", 0);

@@ -3,7 +3,8 @@ FROM dunglas/frankenphp:php8.3
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
 RUN apt-get update \
- && apt-get install -y git unzip \
+ && apt-get install -y git unzip ca-certificates openssl \
+ && update-ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 RUN install-php-extensions mongodb zip

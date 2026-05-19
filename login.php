@@ -3,6 +3,45 @@
  requireGuest();
 
  $error = "";
+
+ if($_SERVER["REQUEST_METHOD"] === "POST")
+ {
+  $email    = trim($_POST["email"] ?? "");
+  $password = $_POST["password"] ?? "";
+
+  if(!$email || !$password)
+  {
+   $error = "Compila tutti i campi.";
+  }
+  else
+  {
+   $db  = getDB();
+   $ip  = $_SERVER["REMOTE_ADDR"] ?? "unknown";
+   $win = new MongoDB\BSON\UTCDateTime((time() - 900) * 1000); // finestra 15 min
+
+   if($db->login_attempts->countDocuments(["ip" => $ip, "at" => ['$gte' => $win]]) >= 5)
+   {
+    $error = "Troppi tentativi di accesso. Riprova tra 15 minuti.";
+   }
+   else
+   {
+    $user = $db->users->findOne(["email" => strtolower($email)]);
+
+    if($user && password_verify($password, $user->password))
+    {
+     $db->login_attempts->deleteMany(["ip" => $ip]);
+     $_SESSION["user_id"] = (string)$user->_id;
+     header("Location: " . (empty($user->profile_complete) ? "onboarding.php" : "discover.php"));
+     exit;
+    }
+    else
+    {
+     $db->login_attempts->insertOne(["ip" => $ip, "at" => new MongoDB\BSON\UTCDateTime()]);
+     $error = "Email o password non corretti.";
+    }
+   }
+  }
+ }
 ?>
 <!DOCTYPE html>
 <html lang="it">

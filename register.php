@@ -103,7 +103,7 @@
     <div class="auth-form-side">
      <div style="max-width:460px; width:100%">
       <?php if(($_GET["from"] ?? "") === "login"){ ?>
-      <a href="/login" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna al login</a>
+      <a href="/login?from=register" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna al login</a>
       <?php } else { ?>
       <a href="/" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna alla home</a>
       <?php } ?>

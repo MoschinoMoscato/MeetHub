@@ -1,4 +1,5 @@
 <?php
+ session_start();
  require_once "config.php";
  requireGuest();
 
@@ -76,7 +77,7 @@
        <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
       <?php } ?>
 
-      <form method="POST">
+      <form method="POST" id="login-form">
        <div class="form-group">
         <label>Email</label>
         <input type="email" name="email" placeholder="tua@email.it"
@@ -96,44 +97,45 @@
         var email = document.querySelector("input[name='email']").value;
         var password = document.querySelector("input[name='password']").value;
 
-        var payload = JSON.stringify({
-         email: email,
-         password: password
-        });
-
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/auth/login");
-        xhr.setRequestHeader("Content-Type", "application/json");
-
-        xhr.onreadystatechange = function()
-        {
-         if(xhr.readyState !== XMLHttpRequest.DONE) return;
-
-         if(xhr.status === 200)
-         {
-          try
-          {
-           var result = JSON.parse(xhr.responseText);
-           if(result.success)
-            window.location.href = result.data.profile_complete ? "discover.php" : "onboarding.php";
-           else
-            alert("Errore: " + result.error);
-          }
-          catch(e) { alert("Errore di comunicazione"); }
-         }
-         else if(xhr.status === 401)
-         {
-          alert("Email o password non corretti");
-         }
-         else
-         {
-          alert("Errore: " + xhr.status);
-         }
-        };
-
-        xhr.send(payload);
+       var payload = JSON.stringify({
+        email: email,
+        password: password
        });
-      </script>
+
+       var xhr = new XMLHttpRequest();
+       xhr.open("POST", "/api/index.php/auth/login"); 
+       xhr.setRequestHeader("Content-Type", "application/json");
+       xhr.withCredentials = true; 
+
+       xhr.onreadystatechange = function()
+       {
+        if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+        if(xhr.status === 200)
+        {
+         try
+         {
+          var result = JSON.parse(xhr.responseText);
+          if(result.success)
+           window.location.href = result.data.profile_complete ? "discover.php" : "onboarding.php";
+          else
+           alert("Errore: " + result.error);
+         }
+         catch(e) { alert("Errore di comunicazione"); }
+        }
+        else if(xhr.status === 401)
+        {
+         alert("Email o password non corretti");
+        }
+        else
+        {
+         alert("Errore: " + xhr.status);
+        }
+       };
+
+       xhr.send(payload);
+      });
+     </script>
 
       <p class="text-center mt-3 text-muted" style="font-size:0.85rem">
        Non hai un account? <a href="register.php">Registrati gratis</a>

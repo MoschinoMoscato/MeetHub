@@ -25,44 +25,30 @@
       jsonError("Utente non trovato", 404, "USER_NOT_FOUND");
      }
 
-     // Verifica se l'utente corrente ha già interagito con questo profilo
-     $interaction = $db->interactions->findOne(
-     [
-      "from_user_id" => $current_user_id,
-      "to_user_id"   => $target_id
-     ]);
+     // Solo i match reciproci possono vedere il profilo
+     $is_match = (bool)$db->matches->findOne(["users" => ['$all' => [$current_user_id, $target_id]]]);
 
-     $is_match  = (bool)$db->matches->findOne(["users" => ['$all' => [$current_user_id, $target_id]]]);
-     $i_liked   = $interaction && $interaction->action === "like";
-     $they_liked = (bool)$db->interactions->findOne(
-     [
-      "from_user_id" => $target_id,
-      "to_user_id"   => $current_user_id,
-      "action"       => "like"
-     ]);
+     if(!$is_match)
+     {
+      jsonError("Profilo visibile solo ai match", 403, "NOT_A_MATCH");
+     }
 
      jsonResponse(
      [
       "success" => true,
       "data"    =>
       [
-       "id"               => (string)$target_user->_id,
-       "name"             => $target_user->name,
-       "email"            => $target_user->email,
-       "age"              => calcAge($target_user->birthdate ?? null),
-       "birthdate"        => $target_user->birthdate ?? null,
-       "gender"           => $target_user->gender    ?? null,
-       "city"             => $target_user->city      ?? "",
-       "job"              => $target_user->job       ?? "",
-       "height"           => $target_user->height    ?? null,
-       "bio"              => $target_user->bio       ?? "",
-       "profile_image"    => $target_user->profile_image ?? null,
-       "interests"        => $target_user->interests ?? [],
-       "traits"           => $target_user->traits    ?? [],
-       "is_match"         => $is_match,
-       "i_liked"          => $i_liked,
-       "they_liked"       => $they_liked,
-       "profile_complete" => $target_user->profile_complete ?? false
+       "id"            => (string)$target_user->_id,
+       "name"          => $target_user->name,
+       "age"           => calcAge($target_user->birthdate ?? null),
+       "gender"        => $target_user->gender    ?? null,
+       "city"          => $target_user->city      ?? "",
+       "job"           => $target_user->job       ?? "",
+       "height"        => $target_user->height    ?? null,
+       "bio"           => $target_user->bio       ?? "",
+       "profile_image" => $target_user->profile_image ?? null,
+       "interests"     => $target_user->interests ?? [],
+       "traits"        => $target_user->traits    ?? []
       ]
      ]);
     }

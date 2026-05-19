@@ -622,7 +622,7 @@
     fd.append("action", action);
 
     var xhr = new XMLHttpRequest();
-    xhr.open("POST", "discover.php");
+    xhr.open("POST", "api/interactions/" + action);
     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
     xhr.onreadystatechange = function()

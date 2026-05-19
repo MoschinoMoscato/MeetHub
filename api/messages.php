@@ -78,6 +78,8 @@
     "type"      => $msg->type ?? "text",
     "text"      => $msg->text ?? null,
     "image_url" => $image_url,
+    "image_id"  => isset($msg->image_id) ? (string)$msg->image_id
+                 : (isset($msg->upload_id) ? (string)$msg->upload_id : null),
     "read"      => $msg->read ?? false,
     "edited"    => $msg->edited ?? false
    ];

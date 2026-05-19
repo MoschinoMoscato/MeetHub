@@ -67,10 +67,38 @@ foreach($users_cursor as $user)
  $legacy_path = (string)($user->profile_image ?? "");
  if(!$legacy_path) { $stats["users_skipped"]++; continue; }
 
- // Non migrare ObjectId finiti per errore nel campo legacy
- if(preg_match('/^[0-9a-f]{24}$/i', $legacy_path)) {
-  echo "  [SKIP] User {$user->_id} — profile_image sembra già un ObjectId (non migrato)\n";
-  $stats["users_skipped"]++;
+ // Potrebbe essere un ObjectId finito per errore nel campo legacy (DB contaminato)
+ if(preg_match('/^[0-9a-f]{24}$/i', $legacy_path))
+ {
+  try
+  {
+   $contaminated_id = new MongoDB\BSON\ObjectId($legacy_path);
+   $existing_upload = $db->uploads->findOne(["_id" => $contaminated_id]);
+   if($existing_upload)
+   {
+    echo "  [REPAIR] User {$user->_id}: profile_image punta a upload esistente $legacy_path";
+    if(!$dry_run)
+    {
+     $db->users->updateOne(["_id" => $user->_id], ['$set' => ["profile_image_id" => $contaminated_id]]);
+     echo " → profile_image_id impostato\n";
+    }
+    else
+    {
+     echo " → verrebbe riparato\n";
+    }
+    $stats["users_migrated"]++;
+   }
+   else
+   {
+    echo "  [WARN] User {$user->_id}: profile_image ha ObjectId $legacy_path ma non esiste in uploads → saltato\n";
+    $stats["users_skipped"]++;
+   }
+  }
+  catch(Exception $e)
+  {
+   echo "  [WARN] User {$user->_id}: profile_image non è un ObjectId valido: $legacy_path\n";
+   $stats["users_skipped"]++;
+  }
   continue;
  }
 

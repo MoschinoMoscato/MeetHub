@@ -5,182 +5,6 @@
  $user = currentUser();
  $db   = getDB();
 
- // Gestione richiesta JSON per i dettagli di un profilo (modal)
- if(isset($_GET["get_user_details"]) && $_GET["get_user_details"] == 1 && isset($_GET["id"]))
- {
-  header("Content-Type: application/json");
-
-  try
-  {
-   $db          = getDB();
-   $target_id   = new MongoDB\BSON\ObjectId($_GET["id"]);
-   $target_user = $db->users->findOne(["_id" => $target_id]);
-
-   if(!$target_user)
-   {
-    echo json_encode(["success" => false, "error" => "Utente non trovato"]);
-    exit;
-   }
-
-   // Recupera interessi in modo sicuro
-   $interests = [];
-
-   if(!empty($target_user->interests))
-   {
-    if(is_array($target_user->interests))
-    {
-     $interests = $target_user->interests;
-    }
-    elseif($target_user->interests instanceof Traversable)
-    {
-     $interests = iterator_to_array($target_user->interests, false);
-    }
-   }
-
-   $traits = [];
-
-   if(!empty($target_user->traits))
-   {
-    if(is_array($target_user->traits))
-    {
-     $traits = $target_user->traits;
-    }
-    elseif($target_user->traits instanceof Traversable)
-    {
-     $traits = iterator_to_array($target_user->traits, false);
-    }
-   }
-
-   echo json_encode(
-   [
-    "success" => true,
-    "data"    =>
-    [
-     "id"            => (string)$target_user->_id,
-     "name"          => $target_user->name,
-     "age"           => calcAge($target_user->birthdate ?? null),
-     "city"          => $target_user->city ?? "",
-     "job"           => $target_user->job ?? "",
-     "height"        => $target_user->height ?? null,
-     "bio"           => $target_user->bio ?? "",
-     "profile_image" => $target_user->profile_image ?? null,
-     "interests"     => $interests,
-     "traits"        => $traits
-    ]
-   ]);
-   exit;
-  }
-  catch(Exception $e)
-  {
-   echo json_encode(["success" => false, "error" => $e->getMessage()]);
-   exit;
-  }
- }
-
- // Gestione richiesta AJAX per like/reject
- if($_SERVER["REQUEST_METHOD"] === "POST" && isset($_SERVER["HTTP_X_REQUESTED_WITH"]) && $_SERVER["HTTP_X_REQUESTED_WITH"] === "XMLHttpRequest")
- {
-  header("Content-Type: application/json");
-
-  $target_user_id = $_POST["target_user_id"] ?? "";
-  $action         = $_POST["action"] ?? "";
-
-  if(!$target_user_id || !in_array($action, ["like", "reject"], true))
-  {
-   echo json_encode(["success" => false, "error" => "Azione non valida."]);
-   exit;
-  }
-
-  try
-  {
-   $db      = getDB();
-   $from_id = new MongoDB\BSON\ObjectId($_SESSION["user_id"]);
-   $to_id   = new MongoDB\BSON\ObjectId($target_user_id);
-
-   if((string)$from_id === (string)$to_id)
-   {
-    echo json_encode(["success" => false, "error" => "Non puoi valutare il tuo profilo."]);
-    exit;
-   }
-
-   // Controlla se esiste già un'interazione con questo utente
-   $existing_interaction = $db->interactions->findOne(
-   [
-    "from_user_id" => $from_id,
-    "to_user_id"   => $to_id
-   ]);
-
-   if($existing_interaction)
-   {
-    // Aggiorna l'interazione esistente
-    $db->interactions->updateOne(
-     ["_id" => $existing_interaction->_id],
-     ['$set' =>
-     [
-      "action"     => $action,
-      "updated_at" => new MongoDB\BSON\UTCDateTime()
-     ]]
-    );
-   }
-   else
-   {
-    // Crea una nuova interazione
-    $db->interactions->insertOne(
-    [
-     "from_user_id" => $from_id,
-     "to_user_id"   => $to_id,
-     "action"       => $action,
-     "created_at"   => new MongoDB\BSON\UTCDateTime(),
-     "updated_at"   => new MongoDB\BSON\UTCDateTime()
-    ]);
-   }
-
-   $match = false;
-
-   if($action === "like")
-   {
-    // Verifica se c'è un like reciproco
-    $reciprocal_like = $db->interactions->findOne(
-    [
-     "from_user_id" => $to_id,
-     "to_user_id"   => $from_id,
-     "action"       => "like"
-    ]);
-
-    if($reciprocal_like)
-    {
-     // Verifica se il match esiste già
-     $existing_match = $db->matches->findOne(["users" => ['$all' => [$from_id, $to_id]]]);
-
-     if(!$existing_match)
-     {
-      $db->matches->insertOne(
-      [
-       "users"      => [$from_id, $to_id],
-       "created_at" => new MongoDB\BSON\UTCDateTime()
-      ]);
-     }
-
-     $match = true;
-    }
-   }
-
-   echo json_encode(
-   [
-    "success" => true,
-    "action"  => $action,
-    "match"   => $match,
-    "message" => $match ? "Match!" : ($action === "like" ? "Like inviato" : "Profilo rifiutato")
-   ]);
-   exit;
-  }
-  catch(Exception $e)
-  {
-   echo json_encode(["success" => false, "error" => "Errore: " . $e->getMessage()]);
-   exit;
-  }
- }
-
  $success = "";
  $error   = "";// Variabili per messaggi di feedback
 
@@ -617,12 +441,15 @@
 
    function sendAction(user_id, action)
    {
-    var fd = new FormData();
-    fd.append("target_user_id", user_id);
-    fd.append("action", action);
+    // ✅ Prepara i dati in JSON
+    var payload = JSON.stringify({
+    user_id: user_id
+    });
 
     var xhr = new XMLHttpRequest();
-    xhr.open("POST", "api/interactions/" + action);
+    // ✅ Chiama l'API invece di discover.php
+    xhr.open("POST", "/api/interactions/" + action);
+    xhr.setRequestHeader("Content-Type", "application/json");
     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
     xhr.onreadystatechange = function()
@@ -635,11 +462,11 @@
       var result = JSON.parse(xhr.responseText);
       if(result.success && result.match) showMatchNotification();
      }
-     catch(e) {}
+     catch(e) { console.error("Errore parsing JSON:", e); }
     };
 
-    xhr.onerror = function() {};
-    xhr.send(fd);
+    xhr.onerror = function() { console.error("Errore di rete"); };
+    xhr.send(payload);  // ✅ Invia JSON
    }
 
    function showMatchNotification()

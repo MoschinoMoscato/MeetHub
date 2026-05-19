@@ -102,7 +102,7 @@
        });
 
        var xhr = new XMLHttpRequest();
-       xhr.open("POST", "/api/index.php/auth/login"); 
+       xhr.open("POST", "/api/auth/login");
        xhr.setRequestHeader("Content-Type", "application/json");
        xhr.withCredentials = true; 
 

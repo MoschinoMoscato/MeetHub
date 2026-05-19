@@ -1,13 +1,8 @@
 <?php
  // Endpoints:
- // GET    /api/users/discover     - Profili da scoprire (con filtri e paginazione)
  // GET    /api/users/{id}         - Dettaglio utente specifico
- // GET    /api/users/profile      - Profilo dell'utente corrente
- // GET    /api/users              - Lista base utenti
- // PUT    /api/users/{id}         - Aggiorna profilo utente
+ // PUT    /api/users/profile      - Aggiorna profilo utente corrente
  // POST   /api/users/upload-photo - Upload foto profilo
- // POST   /api/users/update-location - Aggiorna posizione GPS
- // DELETE /api/users/{id}         - Elimina account
 
  $method          = $_SERVER["REQUEST_METHOD"];
  $current_user_id = new MongoDB\BSON\ObjectId($_SESSION["user_id"]);
@@ -17,121 +12,8 @@
  {
   case "GET":
 
-   // GET /api/users/discover - Profili da scoprire
-   if($id === "discover")
-   {
-    $page  = max(1, (int)($_GET["page"]  ?? 1));
-    $limit = min(50, (int)($_GET["limit"] ?? 12));
-    $skip  = ($page - 1) * $limit;
-
-    $interests = $_GET["interests"] ?? [];
-
-    if(is_string($interests))
-    {
-     $interests = [$interests];
-    }
-
-    $user        = currentUser();
-    $preferences = $user->preferences ?? (object)[];
-
-    // Query base: esclude se stesso e richiede profilo completo
-    $query =
-    [
-     "_id"              => ['$ne' => $current_user_id],
-     "profile_complete" => true
-    ];
-
-    if(!empty($interests))
-    {
-     $query["interests"] = ['$in' => $interests];
-    }
-
-    // Filtro per età dalle preferenze utente
-    if(!empty($preferences->min_age) && !empty($user->birthdate))
-    {
-     $today     = new DateTime();
-     $max_birth = (clone $today)->modify("-" . $preferences->min_age . " years");
-     $min_birth = (clone $today)->modify("-" . ($preferences->max_age ?? 99) . " years");
-     $query["birthdate"] =
-     [
-      '$lte' => $max_birth->format("Y-m-d"),
-      '$gte' => $min_birth->format("Y-m-d")
-     ];
-    }
-
-    if(!empty($preferences->gender) && is_array($preferences->gender))
-    {
-     $query["gender"] = ['$in' => $preferences->gender];
-    }
-
-    // Esclude i profili già visti (like o reject)
-    $seen = $db->interactions->distinct("to_user_id", ["from_user_id" => $current_user_id]);
-
-    if(!empty($seen))
-    {
-     if(!isset($query["_id"]['$nin']))
-     {
-      $query["_id"]['$nin'] = [];
-     }
-     $query["_id"]['$nin'] = array_merge($query["_id"]['$nin'], $seen);
-    }
-
-    $total = $db->users->countDocuments($query);// Conta totale per la paginazione
-    $users = $db->users->find($query, ["limit" => $limit, "skip" => $skip]);
-
-    $users_array = [];
-
-    foreach($users as $u)
-    {
-     // Calcola la distanza se le coordinate sono disponibili
-     $distance = null;
-
-     if(!empty($user->lat) && !empty($user->lng) && !empty($u->lat) && !empty($u->lng))
-     {
-      $distance = haversineDistance((float)$user->lat, (float)$user->lng, (float)$u->lat, (float)$u->lng);
-      $distance = round($distance, 1);
-     }
-
-     // Filtro distanza massima
-     $max_dist = $preferences->max_dist ?? 0;
-
-     if($max_dist > 0 && $distance !== null && $distance > $max_dist)
-     {
-      continue;
-     }
-
-     $users_array[] =
-     [
-      "id"            => (string)$u->_id,
-      "name"          => $u->name,
-      "age"           => calcAge($u->birthdate ?? null),
-      "city"          => $u->city     ?? "",
-      "job"           => $u->job      ?? "",
-      "bio"           => $u->bio      ?? "",
-      "profile_image" => $u->profile_image ?? null,
-      "interests"     => $u->interests ?? [],
-      "traits"        => $u->traits    ?? [],
-      "height"        => $u->height    ?? null,
-      "distance"      => $distance
-     ];
-    }
-
-    jsonResponse(
-    [
-     "success"    => true,
-     "data"       => $users_array,
-     "pagination" =>
-     [
-      "page"  => $page,
-      "limit" => $limit,
-      "total" => $total,
-      "pages" => ceil($total / $limit)
-     ]
-    ]);
-   }
-
    // GET /api/users/{id} - Dettaglio utente specifico
-   elseif($id && $id !== "discover" && $id !== "profile")
+   if($id)
    {
     try
     {
@@ -190,63 +72,9 @@
     }
    }
 
-   // GET /api/users/profile - Profilo dell'utente corrente
-   elseif($id === "profile")
-   {
-    $user = currentUser();
-
-    if(!$user)
-    {
-     jsonError("Utente non trovato", 404, "USER_NOT_FOUND");
-    }
-
-    jsonResponse(
-    [
-     "success" => true,
-     "data"    =>
-     [
-      "id"               => (string)$user->_id,
-      "name"             => $user->name,
-      "email"            => $user->email,
-      "gender"           => $user->gender    ?? null,
-      "birthdate"        => $user->birthdate ?? null,
-      "age"              => calcAge($user->birthdate ?? null),
-      "bio"              => $user->bio        ?? "",
-      "city"             => $user->city       ?? "",
-      "job"              => $user->job        ?? "",
-      "height"           => $user->height     ?? null,
-      "profile_image"    => $user->profile_image ?? null,
-      "interests"        => $user->interests  ?? [],
-      "traits"           => $user->traits     ?? [],
-      "preferences"      => $user->preferences ?? (object)[],
-      "profile_complete" => $user->profile_complete ?? false,
-      "lat"              => $user->lat ?? null,
-      "lng"              => $user->lng ?? null,
-      "created_at"       => $user->created_at ? $user->created_at->toDateTime()->format("Y-m-d H:i:s") : null
-     ]
-    ]);
-   }
-
-   // GET /api/users - Lista base utenti
    else
    {
-    $limit = min(50, (int)($_GET["limit"] ?? 20));
-    $users = $db->users->find([], ["limit" => $limit]);
-    $users_array = [];
-
-    foreach($users as $u)
-    {
-     $users_array[] =
-     [
-      "id"               => (string)$u->_id,
-      "name"             => $u->name,
-      "email"            => $u->email,
-      "profile_complete" => $u->profile_complete ?? false,
-      "created_at"       => $u->created_at ? $u->created_at->toDateTime()->format("Y-m-d H:i:s") : null
-     ];
-    }
-
-    jsonResponse(["success" => true, "data" => $users_array]);
+    jsonError("Endpoint non trovato", 404, "NOT_FOUND");
    }
 
    break;
@@ -368,45 +196,6 @@
     "modified_count" => $result->getModifiedCount(),
     "updated_fields" => array_keys($update_data)
    ]);
-
-   break;
-
-  case "DELETE":
-
-   if(!$id)
-   {
-    jsonError("ID utente richiesto", 400, "MISSING_ID");
-   }
-
-   if($id !== $_SESSION["user_id"])
-   {
-    jsonError("Non puoi eliminare altri utenti", 403, "FORBIDDEN");
-   }
-
-   try
-   {
-    // Eliminazione di tutte le interazioni, messaggi, match e account
-    $db->interactions->deleteMany(["from_user_id" => $current_user_id]);
-    $db->interactions->deleteMany(["to_user_id"   => $current_user_id]);
-    $db->messages->deleteMany(["from_user_id"     => $current_user_id]);
-    $db->messages->deleteMany(["to_user_id"       => $current_user_id]);
-    $db->matches->deleteMany(["users"             => $current_user_id]);
-
-    $result = $db->users->deleteOne(["_id" => $current_user_id]);
-
-    if($result->getDeletedCount() === 0)
-    {
-     jsonError("Utente non trovato", 404, "USER_NOT_FOUND");
-    }
-
-    session_destroy();
-
-    jsonResponse(["success" => true, "message" => "Account eliminato con successo"]);
-   }
-   catch(Exception $e)
-   {
-    jsonError("Errore durante l'eliminazione dell'account: " . $e->getMessage(), 500, "DELETE_ERROR");
-   }
 
    break;
 

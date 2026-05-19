@@ -21,12 +21,14 @@
   jsonResponse($response, $status);
  }
 
- // Routing manuale - supporta sia PATH_INFO che query string
- $request_uri = $_SERVER["REQUEST_URI"];
- $script_name = $_SERVER["SCRIPT_NAME"];
- $path        = str_replace($script_name, "", $request_uri);
- $path        = strtok($path, "?");
- $path        = trim($path, "/");
+ // Routing: gestisce sia /api/{resource}/{id} (via .htaccess) che /api/index.php/{resource}/{id}
+ $path = strtok($_SERVER["REQUEST_URI"], "?");
+ $path = trim($path, "/");
+
+ if(strpos($path, "api/index.php/") === 0)
+  $path = substr($path, strlen("api/index.php/"));
+ elseif(strpos($path, "api/") === 0)
+  $path = substr($path, 4);
 
  $segments    = explode("/", $path);
  $resource    = $segments[0] ?? "";
@@ -58,10 +60,6 @@
 
   case "interactions":
    require_once __DIR__ . "/interactions.php";
-   break;
-
-  case "matches":
-   require_once __DIR__ . "/matches.php";
    break;
 
   default:

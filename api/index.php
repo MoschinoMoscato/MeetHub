@@ -1,5 +1,5 @@
 <?php
- require_once "../config.php";
+ require_once __DIR__ . "/../config.php";
 
  // Header per le risposte API
  header("Content-Type: application/json");

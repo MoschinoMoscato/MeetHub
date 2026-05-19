@@ -309,7 +309,7 @@
    function handleSessionExpired()
    {
     if(refresh_interval) { clearInterval(refresh_interval); refresh_interval = null; }
-    window.location.href = "index.php";
+    window.location.href = "/";
    }
 
    // ── Rendering messaggi da JSON ────────────────────────────────────────────────

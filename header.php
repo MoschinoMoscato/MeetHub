@@ -1,5 +1,5 @@
 <?php
- $current_page        = basename($_SERVER["PHP_SELF"]);
+ $current_page        = trim(parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH), "/");
  $current_user_header = currentUser();
  $header_avatar       = $current_user_header->profile_image ?? null;
  $header_name         = $current_user_header->name ?? "";
@@ -86,8 +86,8 @@
   <a class="app-header-logo" href="/discover">MeetHub</a>
 
   <nav class="app-header-nav">
-   <a class="app-nav-link <?= $current_page === "discover.php" ? "active" : "" ?>" href="/discover">Scopri</a>
-   <a class="app-nav-link <?= $current_page === "chat.php"     ? "active" : "" ?>" href="/chat">Chat</a>
+   <a class="app-nav-link <?= $current_page === "discover" ? "active" : "" ?>" href="/discover">Scopri</a>
+   <a class="app-nav-link <?= $current_page === "chat"     ? "active" : "" ?>" href="/chat">Chat</a>
   </nav>
 
   <div class="app-header-right">

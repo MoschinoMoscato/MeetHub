@@ -120,7 +120,7 @@
          {
           var result = JSON.parse(xhr.responseText);
           if(result.success)
-           window.location.href = result.data.profile_complete ? "discover.php" : "onboarding.php";
+           window.location.href = result.data.profile_complete ? "/discover" : "/onboarding";
           else
            alert("Errore: " + result.error);
          }

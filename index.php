@@ -1,4 +1,24 @@
 <?php
+ // Router PHP: fallback per Railway/Nginx che non applicano .htaccess
+ $path = trim(parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH), "/");
+
+ switch($path)
+ {
+  case "login":      require __DIR__ . "/login.php";      exit;
+  case "register":   require __DIR__ . "/register.php";   exit;
+  case "onboarding": require __DIR__ . "/onboarding.php"; exit;
+  case "discover":   require __DIR__ . "/discover.php";   exit;
+  case "chat":       require __DIR__ . "/chat.php";       exit;
+  case "profile":    require __DIR__ . "/profile.php";    exit;
+  case "settings":   require __DIR__ . "/settings.php";   exit;
+ }
+
+ if(strpos($path, "api/") === 0)
+ {
+  require __DIR__ . "/api/index.php";
+  exit;
+ }
+
  require_once "config.php";
  requireGuest();
 ?>

@@ -733,7 +733,8 @@
     modal.classList.add("open");
 
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", "api/profile.php?user_id=" + encodeURIComponent(recipient_id));
+    // ✅ Chiama l'endpoint API corretto
+    xhr.open("GET", "/api/users/" + encodeURIComponent(recipient_id));
     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
     xhr.onreadystatechange = function()
@@ -747,18 +748,18 @@
       {
        var result = JSON.parse(xhr.responseText);
        if(result.success)
-        box.innerHTML = renderProfile(result.user);
+        box.innerHTML = renderProfile(result.data);  // ✅ Usa result.data
        else
         box.innerHTML = '<div class="upm-error">' + escapeHtml(result.error || "Errore") + '</div>';
       }
       catch(e)
       {
-       box.innerHTML = '<div class="upm-error">Risposta non valida (controlla i log PHP).</div>';
+       box.innerHTML = '<div class="upm-error">Risposta non valida</div>';
       }
      }
      else
      {
-      box.innerHTML = '<div class="upm-error">Errore ' + (xhr.status || "di rete") + '</div>';
+      box.innerHTML = '<div class="upm-error">Errore ' + xhr.status + '</div>';
      }
     };
 

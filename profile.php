@@ -16,7 +16,7 @@
   $job           = trim($_POST["job"]    ?? "");
   $height_raw    = (int)($_POST["height"] ?? 0);
   $height        = ($height_raw >= 140 && $height_raw <= 220) ? $height_raw : null;
-  $profile_image = (string)($user->profile_image ?? "");
+  $profile_image_id = $user->profile_image_id ?? null;
 
   $interests = $_POST["interests"] ?? [];
   if(!is_array($interests)) $interests = [];
@@ -64,7 +64,7 @@
       "data"          => new MongoDB\BSON\Binary($image_data, MongoDB\BSON\Binary::TYPE_GENERIC),
       "created_at"    => new MongoDB\BSON\UTCDateTime()
      ]);
-     $profile_image = (string)$upload_result->getInsertedId();
+     $profile_image_id = $upload_result->getInsertedId();
     }
    }
   }
@@ -81,7 +81,7 @@
       "city"          => $city,
       "job"           => $job,
       "height"        => $height,
-      "profile_image" => $profile_image,
+      "profile_image_id" => $profile_image_id,
       "interests"     => $interests,
       "traits"        => $traits,
       "preferences"      =>
@@ -145,8 +145,8 @@
      <!-- Foto + info base -->
      <div class="profile-edit-hero">
       <label class="profile-photo-label" for="profile_image_input">
-       <?php if(!empty($user->profile_image)){ ?>
-        <img src="<?= htmlspecialchars(profileImageUrl($user->profile_image)) ?>" class="profile-photo-large" alt="Foto profilo">
+       <?php $profile_img_url = profileImageUrl($user); if($profile_img_url){ ?>
+        <img src="<?= htmlspecialchars($profile_img_url) ?>" class="profile-photo-large" alt="Foto profilo">
        <?php } else { ?>
         <div class="profile-photo-placeholder-large"><?= strtoupper(substr($user->name ?? "?", 0, 1)) ?></div>
        <?php } ?>

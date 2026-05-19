@@ -123,13 +123,16 @@
   return is_array($input) ? $input : [];
  }
 
- // Restituisce l'URL corretto per un'immagine: /api/uploads/{id} se è un ObjectId,
- // altrimenti il percorso legacy sul filesystem (compatibilità con dati precedenti).
- function profileImageUrl($val)
+ // Restituisce l'URL per la foto profilo di un utente.
+ // Prima scelta: profile_image_id (nuovo campo ObjectId).
+ // Fallback legacy: profile_image (vecchio path filesystem).
+ function profileImageUrl($user)
  {
-  if(!$val) return null;
-  $s = (string)$val;
-  if(preg_match('/^[0-9a-f]{24}$/i', $s)) return "/api/uploads/" . $s;
-  return "/" . $s;
+  if(!$user) return null;
+  if(!empty($user->profile_image_id))
+   return "/api/uploads/" . (string)$user->profile_image_id;
+  if(!empty($user->profile_image))
+   return "/" . (string)$user->profile_image;
+  return null;
  }
 ?>

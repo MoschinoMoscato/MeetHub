@@ -139,8 +139,8 @@
      <?php foreach($matched_users as $uid => $match_user){ ?>
       <a class="chat-contact <?= ($selected_user && (string)$selected_user->_id === $uid) ? "active" : "" ?>" href="/chat?chat=<?= urlencode($uid) ?>">
        <div class="chat-contact-avatar">
-        <?php if(!empty($match_user->profile_image)){ ?>
-         <img class="avatar-image" src="<?= htmlspecialchars(profileImageUrl($match_user->profile_image)) ?>" alt="">
+        <?php $mu_img = profileImageUrl($match_user); if($mu_img){ ?>
+         <img class="avatar-image" src="<?= htmlspecialchars($mu_img) ?>" alt="">
         <?php } else { ?>
          <?= strtoupper(substr($match_user->name ?? "?", 0, 1)) ?>
         <?php } ?>
@@ -162,8 +162,8 @@
      <div class="chat-header chat-header--clickable" id="chat-header-btn" title="Visualizza profilo">
       <a class="chat-back-btn" href="/chat" title="Torna alla lista" onclick="event.stopPropagation()">&#8249;</a>
       <div class="chat-contact-avatar">
-       <?php if(!empty($selected_user->profile_image)){ ?>
-        <img class="avatar-image" src="<?= htmlspecialchars(profileImageUrl($selected_user->profile_image)) ?>" alt="">
+       <?php $su_img = profileImageUrl($selected_user); if($su_img){ ?>
+        <img class="avatar-image" src="<?= htmlspecialchars($su_img) ?>" alt="">
        <?php } else { ?>
         <?= strtoupper(substr($selected_user->name ?? "?", 0, 1)) ?>
        <?php } ?>
@@ -200,8 +200,9 @@
            $msg_img_url = null;
            if(($msg->type ?? "text") === "image")
            {
-            if(isset($msg->upload_id)) $msg_img_url = "/api/uploads/" . (string)$msg->upload_id;
-            elseif(!empty($msg->image_path)) $msg_img_url = "/" . $msg->image_path;
+            if(isset($msg->image_id))                    $msg_img_url = "/api/uploads/" . (string)$msg->image_id;
+            elseif(isset($msg->upload_id))               $msg_img_url = "/api/uploads/" . (string)$msg->upload_id;
+            elseif(!empty($msg->image_path))             $msg_img_url = "/" . $msg->image_path;
            }
           ?>
           <?php if($msg_img_url){ ?>

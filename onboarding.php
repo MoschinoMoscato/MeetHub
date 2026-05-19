@@ -22,7 +22,7 @@
   $city         = trim($_POST["city"] ?? "");
   $height       = (int)($_POST["height"] ?? 0);
   $job          = trim($_POST["job"] ?? "");
-  $profile_image = $user->profile_image ?? "";
+  $profile_image_id = $user->profile_image_id ?? null;
 
   // Interessi inviati dal form
   $interests = $_POST["interests"] ?? [];
@@ -94,7 +94,7 @@
       "data"          => new MongoDB\BSON\Binary($image_data, MongoDB\BSON\Binary::TYPE_GENERIC),
       "created_at"    => new MongoDB\BSON\UTCDateTime()
      ]);
-     $profile_image = (string)$upload_result->getInsertedId();
+     $profile_image_id = $upload_result->getInsertedId();
     }
    }
   }
@@ -111,7 +111,7 @@
       "city"             => $city,
       "height"           => $height > 0 ? $height : null,
       "job"              => $job,
-      "profile_image"    => $profile_image,
+      "profile_image_id" => $profile_image_id,
       "interests"        => $interests,
       "traits"           => $traits,
       "preferences"      =>
@@ -224,9 +224,9 @@
         <label>Immagine profilo</label>
         <input type="file" name="profile_image" accept=".jpg,.jpeg,.png,.webp,.gif,image/*">
         <small class="text-muted">Formato: JPG, PNG, WEBP o GIF (max 5MB)</small>
-        <?php if(!empty($user->profile_image)){ ?>
+        <?php $ob_preview = profileImageUrl($user); if($ob_preview){ ?>
          <div class="onboarding-profile-preview">
-          <img src="<?= htmlspecialchars(profileImageUrl($user->profile_image)) ?>" alt="Immagine profilo attuale">
+          <img src="<?= htmlspecialchars($ob_preview) ?>" alt="Immagine profilo attuale">
          </div>
         <?php } ?>
        </div>
@@ -427,7 +427,98 @@
     updatePrefGenderInput();
 
     document.querySelector("input[name='city']")?.focus();
+
+    // ── Submit via XHR (soluzione preferita) ────────────────────────────────
+    document.getElementById("onboardingForm").addEventListener("submit", function(e)
+    {
+     e.preventDefault();
+
+     var formData = new FormData(this);
+
+     var payload =
+     {
+      bio:      formData.get("bio")  || "",
+      city:     formData.get("city") || "",
+      job:      formData.get("job")  || "",
+      height:   parseInt(formData.get("height")) || null,
+      interests: formData.getAll("interests[]"),
+      traits:    formData.getAll("traits[]"),
+      preferences:
+      {
+       gender:   formData.getAll("pref_gender[]"),
+       min_age:  parseInt(formData.get("pref_min_age"))  || 18,
+       max_age:  parseInt(formData.get("pref_max_age"))  || 50,
+       max_dist: parseInt(formData.get("pref_max_dist")) || 50
+      },
+      profile_complete: true
+     };
+
+     var imageFile = formData.get("profile_image");
+
+     if(imageFile && imageFile.size > 0)
+     {
+      uploadPhoto(imageFile, function() { saveOnboarding(payload); });
+     }
+     else
+     {
+      saveOnboarding(payload);
+     }
+    });
    });
+
+   function uploadPhoto(file, callback)
+   {
+    var fd = new FormData();
+    fd.append("profile_image", file);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/users/upload-photo");
+
+    xhr.onreadystatechange = function()
+    {
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     if(xhr.status === 200)
+     {
+      try
+      {
+       var r = JSON.parse(xhr.responseText);
+       if(r.success) callback();
+       else alert("Errore foto: " + (r.error || "Sconosciuto"));
+      }
+      catch(e) { alert("Errore di comunicazione"); }
+     }
+     else { alert("Errore upload foto: " + xhr.status); }
+    };
+
+    xhr.send(fd);
+   }
+
+   function saveOnboarding(payload)
+   {
+    var xhr = new XMLHttpRequest();
+    xhr.open("PUT", "/api/users/profile");
+    xhr.setRequestHeader("Content-Type", "application/json");
+
+    xhr.onreadystatechange = function()
+    {
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     if(xhr.status === 200)
+     {
+      try
+      {
+       var r = JSON.parse(xhr.responseText);
+       if(r.success) window.location.href = "/discover";
+       else alert("Errore: " + (r.error || "Sconosciuto"));
+      }
+      catch(e) { alert("Errore di comunicazione"); }
+     }
+     else { alert("Errore: " + xhr.status); }
+    };
+
+    xhr.send(JSON.stringify(payload));
+   }
   </script>
  </body>
 </html>

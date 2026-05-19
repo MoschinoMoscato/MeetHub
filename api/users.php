@@ -33,7 +33,6 @@
       jsonError("Profilo visibile solo ai match", 403, "NOT_A_MATCH");
      }
 
-     $pi = $target_user->profile_image ?? null;
      jsonResponse(
      [
       "success" => true,
@@ -47,7 +46,8 @@
        "job"               => $target_user->job       ?? "",
        "height"            => $target_user->height    ?? null,
        "bio"               => $target_user->bio       ?? "",
-       "profile_image_url" => profileImageUrl($pi),
+       "profile_image_id"  => !empty($target_user->profile_image_id) ? (string)$target_user->profile_image_id : null,
+       "profile_image_url" => profileImageUrl($target_user),
        "interests"         => $target_user->interests ?? [],
        "traits"            => $target_user->traits    ?? []
       ]
@@ -77,7 +77,7 @@
     }
 
     $file     = $_FILES["profile_image"];
-    $max_size = 5 * 1024 * 1024;// 5MB
+    $max_size = 5 * 1024 * 1024; // 5MB
 
     if($file["size"] > $max_size)
     {
@@ -99,6 +99,9 @@
      jsonError("Formato immagine non supportato. Usa JPG, PNG, WEBP o GIF.", 400, "INVALID_FORMAT");
     }
 
+    // Recupera il vecchio profile_image_id per eliminare l'upload precedente
+    $old_user = $db->users->findOne(["_id" => $current_user_id], ["projection" => ["profile_image_id" => 1]]);
+
     $image_data    = file_get_contents($file["tmp_name"]);
     $upload_result = $db->uploads->insertOne(
     [
@@ -110,20 +113,35 @@
      "created_at"    => new MongoDB\BSON\UTCDateTime()
     ]);
 
-    $upload_id = (string)$upload_result->getInsertedId();
+    $new_upload_id = $upload_result->getInsertedId();
 
+    // Aggiorna profile_image_id (non profile_image — campo legacy)
     $db->users->updateOne(
      ["_id" => $current_user_id],
-     ['$set' => ["profile_image" => $upload_id, "updated_at" => new MongoDB\BSON\UTCDateTime()]]
+     ['$set' => ["profile_image_id" => $new_upload_id, "updated_at" => new MongoDB\BSON\UTCDateTime()]]
     );
+
+    // Elimina il vecchio upload profilo se esisteva
+    if(!empty($old_user->profile_image_id))
+    {
+     try
+     {
+      $db->uploads->deleteOne([
+       "_id"           => $old_user->profile_image_id,
+       "owner_user_id" => $current_user_id,
+       "kind"          => "profile"
+      ]);
+     }
+     catch(Throwable $e) {}
+    }
 
     jsonResponse(
     [
      "success" => true,
      "data"    =>
      [
-      "profile_image_id"  => $upload_id,
-      "profile_image_url" => "/api/uploads/" . $upload_id
+      "profile_image_id"  => (string)$new_upload_id,
+      "profile_image_url" => "/api/uploads/" . (string)$new_upload_id
      ],
      "message" => "Immagine caricata con successo"
     ]);
@@ -151,8 +169,8 @@
    $input       = getJsonInput();
    $update_data = [];
 
-   // Campi consentiti per l'aggiornamento
-   $allowed_fields = ["bio", "city", "job", "height", "interests", "traits", "preferences", "name", "profile_image"];
+   // profile_image e profile_image_id esclusi: si aggiornano solo via POST /upload-photo
+   $allowed_fields = ["bio", "city", "job", "height", "interests", "traits", "preferences", "name"];
 
    foreach($allowed_fields as $field)
    {

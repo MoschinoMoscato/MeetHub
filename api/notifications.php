@@ -28,14 +28,14 @@
 
   foreach($db->messages->aggregate($pipeline) as $row)
   {
-   $sender = $db->users->findOne(["_id" => $row->_id], ["projection" => ["name" => 1, "profile_image" => 1]]);
+   $sender = $db->users->findOne(["_id" => $row->_id], ["projection" => ["name" => 1, "profile_image" => 1, "profile_image_id" => 1]]);
    if($sender)
    {
     $message_items[] =
     [
      "id"    => (string)$row->_id,
      "name"  => (string)($sender->name ?? "?"),
-     "img"   => profileImageUrl($sender->profile_image ?? null),
+     "img"   => profileImageUrl($sender),
      "count" => (int)$row->count
     ];
    }
@@ -62,13 +62,13 @@
 
    if($other_id)
    {
-    $other = $db->users->findOne(["_id" => $other_id], ["projection" => ["name" => 1, "profile_image" => 1]]);
+    $other = $db->users->findOne(["_id" => $other_id], ["projection" => ["name" => 1, "profile_image" => 1, "profile_image_id" => 1]]);
     if($other)
     {
      $match_items[] =
      [
       "name"     => (string)($other->name ?? "?"),
-      "img"      => profileImageUrl($other->profile_image ?? null),
+      "img"      => profileImageUrl($other),
       "id"       => (string)$other_id,
       "match_id" => (string)$m->_id
      ];

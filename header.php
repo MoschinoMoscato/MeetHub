@@ -1,7 +1,7 @@
 <?php
  $current_page        = trim(parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH), "/");
  $current_user_header = currentUser();
- $header_avatar       = profileImageUrl($current_user_header->profile_image ?? null);
+ $header_avatar       = profileImageUrl($current_user_header);
  $header_name         = $current_user_header->name ?? "";
 
  $notif_message_items = [];
@@ -24,14 +24,14 @@
 
    foreach($db_h->messages->aggregate($pipeline) as $row)
    {
-    $sender = $db_h->users->findOne(["_id" => $row->_id], ["projection" => ["name" => 1, "profile_image" => 1]]);
+    $sender = $db_h->users->findOne(["_id" => $row->_id], ["projection" => ["name" => 1, "profile_image" => 1, "profile_image_id" => 1]]);
     if($sender)
     {
      $notif_message_items[] =
      [
       "id"    => (string)$row->_id,
       "name"  => (string)($sender->name ?? "?"),
-      "img"   => profileImageUrl($sender->profile_image ?? null),
+      "img"   => profileImageUrl($sender),
       "count" => (int)$row->count
      ];
     }
@@ -60,13 +60,13 @@
 
     if($other_id)
     {
-     $other = $db_h->users->findOne(["_id" => $other_id], ["projection" => ["name" => 1, "profile_image" => 1]]);
+     $other = $db_h->users->findOne(["_id" => $other_id], ["projection" => ["name" => 1, "profile_image" => 1, "profile_image_id" => 1]]);
      if($other)
      {
       $notif_match_items[] =
       [
        "name"     => (string)($other->name ?? "?"),
-       "img"      => profileImageUrl($other->profile_image ?? null),
+       "img"      => profileImageUrl($other),
        "id"       => (string)$other_id,
        "match_id" => (string)$m->_id
       ];

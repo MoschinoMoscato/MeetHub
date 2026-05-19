@@ -63,9 +63,11 @@
    $image_url = null;
    if(($msg->type ?? "text") === "image")
    {
-    if(isset($msg->upload_id))
+    if(isset($msg->image_id))                               // campo nuovo
+     $image_url = "/api/uploads/" . (string)$msg->image_id;
+    elseif(isset($msg->upload_id))                          // fallback temp legacy
      $image_url = "/api/uploads/" . (string)$msg->upload_id;
-    elseif(isset($msg->image_path) && $msg->image_path)
+    elseif(isset($msg->image_path) && $msg->image_path)    // fallback filesystem legacy
      $image_url = "/" . $msg->image_path;
    }
 
@@ -138,7 +140,7 @@
     "created_at"    => new MongoDB\BSON\UTCDateTime()
    ]);
 
-   $upload_id = $upload_result->getInsertedId();
+   $image_id = $upload_result->getInsertedId();
 
    try
    {
@@ -147,7 +149,7 @@
      "from_user_id" => $current_user_id,
      "to_user_id"   => $recipient_id,
      "type"         => "image",
-     "upload_id"    => $upload_id,
+     "image_id"     => $image_id,
      "text"         => null,
      "created_at"   => new MongoDB\BSON\UTCDateTime(),
      "read"         => false
@@ -156,7 +158,7 @@
    }
    catch(Throwable $e)
    {
-    $db->uploads->deleteOne(["_id" => $upload_id]);
+    $db->uploads->deleteOne(["_id" => $image_id]);
     http_response_code(500);
     echo json_encode(["error" => "Errore database"]);
    }
@@ -301,13 +303,18 @@
    exit;
   }
 
-  if(isset($msg->upload_id) && $msg->upload_id)
+  if(isset($msg->image_id) && $msg->image_id)                 // campo nuovo
+  {
+   try { $db->uploads->deleteOne(["_id" => $msg->image_id]); }
+   catch(Throwable $e) {}
+  }
+  elseif(isset($msg->upload_id) && $msg->upload_id)           // fallback temp legacy
   {
    try { $db->uploads->deleteOne(["_id" => $msg->upload_id]); }
    catch(Throwable $e) {}
   }
 
-  // Pulizia legacy (filesystem)
+  // Pulizia fallback filesystem legacy
   if(isset($msg->image_path) && $msg->image_path)
   {
    $fp = __DIR__ . "/../" . $msg->image_path;

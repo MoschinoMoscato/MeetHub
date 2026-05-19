@@ -51,7 +51,28 @@
    {
     try
     {
-     // Elimina upload dell'utente (profile + chat images)
+     // Raccogli gli image_id dei messaggi nella conversazione (anche quelli inviati da altri)
+     $conv_image_ids = [];
+     $conv_msgs = $db->messages->find(
+     [
+      '$and' =>
+      [
+       ['$or' => [["from_user_id" => $id], ["to_user_id" => $id]]],
+       ["type" => "image"]
+      ]
+     ],
+     ["projection" => ["image_id" => 1, "upload_id" => 1]]);
+
+     foreach($conv_msgs as $cm)
+     {
+      if(!empty($cm->image_id))  $conv_image_ids[] = $cm->image_id;
+      elseif(!empty($cm->upload_id)) $conv_image_ids[] = $cm->upload_id;
+     }
+
+     if(!empty($conv_image_ids))
+      $db->uploads->deleteMany(["_id" => ['$in' => $conv_image_ids]]);
+
+     // Elimina tutti gli upload di proprietà dell'utente (immagini profilo, ecc.)
      $db->uploads->deleteMany(["owner_user_id" => $id]);
 
      // Elimina dati dal DB

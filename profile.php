@@ -135,7 +135,7 @@
   <div class="page-wrapper">
    <div class="profile-edit-wrap">
 
-    <a href="discover.php" class="profile-back-link">← Torna a Scopri</a>
+    <a href="/discover" class="profile-back-link">← Torna a Scopri</a>
 
     <form method="POST" enctype="multipart/form-data" novalidate class="profile-edit-card">
 

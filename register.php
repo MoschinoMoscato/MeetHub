@@ -70,7 +70,7 @@
     ])->getInsertedId();
 
     $_SESSION["user_id"] = (string)$user_id;
-    header("Location: onboarding.php");
+    header("Location: /onboarding");
     exit;
    }
   }
@@ -89,7 +89,7 @@
 
  <body>
   <header class="lp-header scrolled">
-   <a class="lp-logo" href="index.php">MeetHub</a>
+   <a class="lp-logo" href="/">MeetHub</a>
   </header>
   <div class="page-wrapper">
    <div class="auth-container">
@@ -102,7 +102,11 @@
 
     <div class="auth-form-side">
      <div style="max-width:460px; width:100%">
-      <a href="login.php" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna al login</a>
+      <?php if(($_GET["from"] ?? "") === "login"){ ?>
+      <a href="/login" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna al login</a>
+      <?php } else { ?>
+      <a href="/" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna alla home</a>
+      <?php } ?>
 
       <h2>Registrati</h2>
       <p class="subtitle">Unisciti a migliaia di persone che cercano amore</p>
@@ -148,7 +152,7 @@
       </form>
 
       <p class="text-center mt-3 text-muted" style="font-size:0.85rem">
-       Hai già un account? <a href="login.php">Accedi</a>
+       Hai già un account? <a href="/login?from=register">Accedi</a>
       </p>
      </div>
     </div>

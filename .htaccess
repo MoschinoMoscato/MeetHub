@@ -1,0 +1,12 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    RewriteRule ^login$       login.php       [L,QSA]
+    RewriteRule ^register$    register.php    [L,QSA]
+    RewriteRule ^onboarding$  onboarding.php  [L,QSA]
+    RewriteRule ^discover$    discover.php    [L,QSA]
+    RewriteRule ^chat$        chat.php        [L,QSA]
+    RewriteRule ^profile$     profile.php     [L,QSA]
+    RewriteRule ^settings$    settings.php    [L,QSA]
+</IfModule>

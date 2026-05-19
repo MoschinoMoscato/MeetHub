@@ -31,7 +31,7 @@
     {
      $db->login_attempts->deleteMany(["ip" => $ip]);
      $_SESSION["user_id"] = (string)$user->_id;
-     header("Location: " . (empty($user->profile_complete) ? "onboarding.php" : "discover.php"));
+     header("Location: " . (empty($user->profile_complete) ? "/onboarding" : "/discover"));
      exit;
     }
     else
@@ -54,7 +54,7 @@
 
  <body>
   <header class="lp-header scrolled">
-   <a class="lp-logo" href="index.php">MeetHub</a>
+   <a class="lp-logo" href="/">MeetHub</a>
   </header>
   <div class="page-wrapper">
    <div class="auth-container">
@@ -67,7 +67,11 @@
 
     <div class="auth-form-side">
      <div style="max-width:420px; width:100%">
-      <a href="index.php" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna alla home</a>
+      <?php if(($_GET["from"] ?? "") === "register"){ ?>
+      <a href="/register" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna alla registrazione</a>
+      <?php } else { ?>
+      <a href="/" style="color:var(--text-muted); font-size:0.9rem; display:flex; align-items:center; gap:0.4rem; margin-bottom:2rem">← Torna alla home</a>
+      <?php } ?>
 
       <h2>Accedi</h2>
       <p class="subtitle">Inserisci le tue credenziali per continuare</p>
@@ -137,7 +141,7 @@
      </script>
 
       <p class="text-center mt-3 text-muted" style="font-size:0.85rem">
-       Non hai un account? <a href="register.php">Registrati gratis</a>
+       Non hai un account? <a href="/register?from=login">Registrati</a>
       </p>
      </div>
     </div>

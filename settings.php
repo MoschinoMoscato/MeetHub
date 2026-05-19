@@ -62,7 +62,7 @@
      $db->users->deleteOne(["_id" => $id]);
 
      session_destroy();
-     header("Location: index.php?deleted=1");
+     header("Location: /?deleted=1");
      exit;
     }
     catch(Throwable $e) { $error = "Errore durante l'eliminazione. Riprova."; }
@@ -83,7 +83,7 @@
   <div class="page-wrapper">
    <div class="settings-wrap">
 
-    <a href="discover.php" class="profile-back-link">← Torna a Scopri</a>
+    <a href="/discover" class="profile-back-link">← Torna a Scopri</a>
     <h2 style="margin-bottom:2rem">Impostazioni</h2>
 
     <?php if($error){ ?>

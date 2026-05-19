@@ -8,7 +8,7 @@
  // L'onboarding è solo per il primo accesso — chi ha già il profilo va su profile.php
  if(!empty($user->profile_complete) && $user->profile_complete === true)
  {
-  header("Location: profile.php");
+  header("Location: /profile");
   exit;
  }
 
@@ -133,7 +133,7 @@
      ]
     ]);
 
-    header("Location: discover.php");
+    header("Location: /discover");
     exit;
    }
    catch(Throwable $e)

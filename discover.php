@@ -12,7 +12,7 @@
  if(isset($_GET["logout"]))
  {
   session_destroy();
-  header("Location: index.php");
+  header("Location: /");
   exit;
  }
 
@@ -238,7 +238,7 @@
      </div>
      <div class="flex gap-1 mt-2">
       <button type="submit" class="btn btn-primary btn-sm">Applica</button>
-      <a href="discover.php" class="btn btn-ghost btn-sm">Reset</a>
+      <a href="/discover" class="btn btn-ghost btn-sm">Reset</a>
      </div>
     </form>
    </div>

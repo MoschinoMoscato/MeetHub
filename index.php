@@ -23,8 +23,8 @@
    </nav>
 
    <div class="lp-header-actions">
-    <a href="login.php" class="btn btn-ghost btn-sm">Accedi</a>
-    <a href="register.php" class="btn btn-primary btn-sm">Inizia gratis</a>
+    <a href="/login?from=home" class="btn btn-ghost btn-sm">Accedi</a>
+    <a href="/register?from=home" class="btn btn-primary btn-sm">Registrati</a>
    </div>
   </header>
 
@@ -45,7 +45,7 @@
       di essere impegnate mentre controllano il telefono ogni tre minuti.
      </p>
      <div class="lp-hero-ctas">
-      <a href="register.php" class="btn btn-primary btn-lg">Inizia gratis →</a>
+      <a href="/register?from=home" class="btn btn-primary btn-lg">Registrati →</a>
       <a href="#come-funziona" class="btn btn-ghost btn-lg">Come funziona</a>
      </div>
     </div>
@@ -155,7 +155,7 @@
   <section class="lp-final-cta">
    <h2>Smettila di mangiare<br>la pizza da solo.</h2>
    <p>Unisciti a MeetHub. Crea connessioni vere, storie autentiche e, se tutto va bene, qualcuno che risponda entro 48 ore.</p>
-   <a href="register.php" class="btn btn-primary btn-lg" style="margin-top:2.25rem">Inizia gratis — cosa hai da perdere?</a>
+   <a href="/register?from=home" class="btn btn-primary btn-lg" style="margin-top:2.25rem">Registrati — cosa hai da perdere?</a>
   </section>
 
   <!-- ── FOOTER ────────────────────────────────────────────────────────────── -->

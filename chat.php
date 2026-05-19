@@ -137,7 +137,7 @@
      </div>
     <?php } else { ?>
      <?php foreach($matched_users as $uid => $match_user){ ?>
-      <a class="chat-contact <?= ($selected_user && (string)$selected_user->_id === $uid) ? "active" : "" ?>" href="chat.php?chat=<?= urlencode($uid) ?>">
+      <a class="chat-contact <?= ($selected_user && (string)$selected_user->_id === $uid) ? "active" : "" ?>" href="/chat?chat=<?= urlencode($uid) ?>">
        <div class="chat-contact-avatar">
         <?php if(!empty($match_user->profile_image)){ ?>
          <img class="avatar-image" src="<?= htmlspecialchars($match_user->profile_image) ?>" alt="">
@@ -160,7 +160,7 @@
 
      <!-- Header: cliccabile per vedere il profilo -->
      <div class="chat-header chat-header--clickable" id="chat-header-btn" title="Visualizza profilo">
-      <a class="chat-back-btn" href="chat.php" title="Torna alla lista" onclick="event.stopPropagation()">&#8249;</a>
+      <a class="chat-back-btn" href="/chat" title="Torna alla lista" onclick="event.stopPropagation()">&#8249;</a>
       <div class="chat-contact-avatar">
        <?php if(!empty($selected_user->profile_image)){ ?>
         <img class="avatar-image" src="<?= htmlspecialchars($selected_user->profile_image) ?>" alt="">

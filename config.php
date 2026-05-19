@@ -73,7 +73,7 @@
     exit;
    }
 
-   header("Location: index.php");
+   header("Location: /");
    exit;
   }
  }
@@ -83,7 +83,7 @@
  {
   if(isset($_SESSION["user_id"]))
   {
-   header("Location: discover.php");
+   header("Location: /discover");
    exit;
   }
  }

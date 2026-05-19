@@ -3,45 +3,6 @@
  requireGuest();
 
  $error = "";
-
- if($_SERVER["REQUEST_METHOD"] === "POST")
- {
-  $email    = trim($_POST["email"] ?? "");
-  $password = $_POST["password"] ?? "";
-
-  if(!$email || !$password)
-  {
-   $error = "Compila tutti i campi.";
-  }
-  else
-  {
-   $db  = getDB();
-   $ip  = $_SERVER["REMOTE_ADDR"] ?? "unknown";
-   $win = new MongoDB\BSON\UTCDateTime((time() - 900) * 1000); // finestra 15 min
-
-   if($db->login_attempts->countDocuments(["ip" => $ip, "at" => ['$gte' => $win]]) >= 5)
-   {
-    $error = "Troppi tentativi di accesso. Riprova tra 15 minuti.";
-   }
-   else
-   {
-    $user = $db->users->findOne(["email" => strtolower($email)]);
-
-    if($user && password_verify($password, $user->password))
-    {
-     $db->login_attempts->deleteMany(["ip" => $ip]);
-     $_SESSION["user_id"] = (string)$user->_id;
-     header("Location: " . (empty($user->profile_complete) ? "onboarding.php" : "discover.php"));
-     exit;
-    }
-    else
-    {
-     $db->login_attempts->insertOne(["ip" => $ip, "at" => new MongoDB\BSON\UTCDateTime()]);
-     $error = "Email o password non corretti.";
-    }
-   }
-  }
- }
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -97,5 +58,51 @@
 
    </div>
   </div>
+  <script>
+   document.getElementById("login-form").addEventListener("submit", function(e)
+   {
+    e.preventDefault();
+
+    var email = document.querySelector("input[name='email']").value;
+    var password = document.querySelector("input[name='password']").value;
+
+    var payload = JSON.stringify({
+     email: email,
+     password: password
+    });
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/auth/login");
+    xhr.setRequestHeader("Content-Type", "application/json");
+
+    xhr.onreadystatechange = function()
+    {
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     if(xhr.status === 200)
+     {
+      try
+      {
+       var result = JSON.parse(xhr.responseText);
+       if(result.success)
+        window.location.href = result.data.profile_complete ? "discover.php" : "onboarding.php";
+       else
+        alert("Errore: " + result.error);
+      }
+      catch(e) { alert("Errore di comunicazione"); }
+     }
+     else if(xhr.status === 401)
+     {
+      alert("Email o password non corretti");
+     }
+     else
+     {
+      alert("Errore: " + xhr.status);
+     }
+    };
+
+    xhr.send(payload);
+   });
+  </script>
  </body>
 </html>

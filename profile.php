@@ -328,5 +328,134 @@
     syncChips("pref_gender");
    });
   </script>
+  
+  <script>
+   // Intercetta il submit del form
+   document.addEventListener("DOMContentLoaded", function()
+   {
+    var form = document.querySelector("form[method='POST']");
+    if(!form) return;
+
+    form.addEventListener("submit", function(e)
+    {
+     e.preventDefault();
+
+     // ✅ Raccogli i dati del form
+     var formData = new FormData(form);
+     var profileData = {};
+
+     for(var [key, value] of formData.entries())
+     {
+      if(key.endsWith("[]"))
+      {
+       // Gestione array (interests, traits, pref_gender)
+       var arrayKey = key.slice(0, -2);
+       if(!profileData[arrayKey]) profileData[arrayKey] = [];
+       profileData[arrayKey].push(value);
+      }
+      else
+      {
+       // Valori singoli
+       if(key !== "profile_image")  // Skip file input
+        profileData[key] = value;
+      }
+     }
+
+     // ✅ Crea l'oggetto preferences
+     var preferences = {
+      gender: profileData.pref_gender || [],
+      min_age: parseInt(profileData.pref_min_age) || 18,
+      max_age: parseInt(profileData.pref_max_age) || 50,
+      max_dist: parseInt(profileData.pref_max_dist) || 0
+     };
+
+     // ✅ Prepara il payload per l'API
+     var payload = {
+      bio: profileData.bio || "",
+      city: profileData.city || "",
+      job: profileData.job || "",
+      height: parseInt(profileData.height) || null,
+      interests: profileData.interests || [],
+      traits: profileData.traits || [],
+      preferences: preferences,
+      profile_complete: true
+     };
+
+     // ✅ Se c'è una foto, fai prima l'upload
+     if(formData.get("profile_image") && formData.get("profile_image").size > 0)
+     {
+      uploadProfilePhoto(formData.get("profile_image"), function()
+      {
+       sendProfileUpdate(payload);
+      });
+     }
+     else
+     {
+      sendProfileUpdate(payload);
+     }
+    });
+   });
+
+   function uploadProfilePhoto(file, callback)
+   {
+    var fd = new FormData();
+    fd.append("profile_image", file);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/users/upload-photo");
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+    xhr.onreadystatechange = function()
+    {
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     if(xhr.status === 200)
+     {
+      try
+      {
+       var result = JSON.parse(xhr.responseText);
+       if(result.success) callback();
+       else alert("Errore upload foto: " + result.error);
+      }
+      catch(e) { alert("Errore di comunicazione"); }
+     }
+     else { alert("Errore upload: " + xhr.status); }
+    };
+
+    xhr.send(fd);
+   }
+
+   function sendProfileUpdate(payload)
+   {
+   var xhr = new XMLHttpRequest();
+    // ✅ PUT verso l'API
+    xhr.open("PUT", "/api/users/profile");
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+    xhr.onreadystatechange = function()
+    {
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     if(xhr.status === 200)
+     {
+      try
+      {
+       var result = JSON.parse(xhr.responseText);
+       if(result.success)
+       {
+        alert("Profilo aggiornato con successo!");
+        location.reload();
+       }
+       else { alert("Errore: " + result.error); }
+      }
+      catch(e) { alert("Errore di comunicazione"); }
+     }
+     else { alert("Errore: " + xhr.status); }
+    };
+
+    xhr.send(JSON.stringify(payload));
+   }
+</script>
  </body>
 </html>

@@ -33,22 +33,23 @@
       jsonError("Profilo visibile solo ai match", 403, "NOT_A_MATCH");
      }
 
+     $pi = $target_user->profile_image ?? null;
      jsonResponse(
      [
       "success" => true,
       "data"    =>
       [
-       "id"            => (string)$target_user->_id,
-       "name"          => $target_user->name,
-       "age"           => calcAge($target_user->birthdate ?? null),
-       "gender"        => $target_user->gender    ?? null,
-       "city"          => $target_user->city      ?? "",
-       "job"           => $target_user->job       ?? "",
-       "height"        => $target_user->height    ?? null,
-       "bio"           => $target_user->bio       ?? "",
-       "profile_image" => $target_user->profile_image ?? null,
-       "interests"     => $target_user->interests ?? [],
-       "traits"        => $target_user->traits    ?? []
+       "id"                => (string)$target_user->_id,
+       "name"              => $target_user->name,
+       "age"               => calcAge($target_user->birthdate ?? null),
+       "gender"            => $target_user->gender    ?? null,
+       "city"              => $target_user->city      ?? "",
+       "job"               => $target_user->job       ?? "",
+       "height"            => $target_user->height    ?? null,
+       "bio"               => $target_user->bio       ?? "",
+       "profile_image_url" => profileImageUrl($pi),
+       "interests"         => $target_user->interests ?? [],
+       "traits"            => $target_user->traits    ?? []
       ]
      ]);
     }
@@ -98,32 +99,32 @@
      jsonError("Formato immagine non supportato. Usa JPG, PNG, WEBP o GIF.", 400, "INVALID_FORMAT");
     }
 
-    $upload_dir = __DIR__ . "/../uploads/profiles";
+    $image_data    = file_get_contents($file["tmp_name"]);
+    $upload_result = $db->uploads->insertOne(
+    [
+     "owner_user_id" => $current_user_id,
+     "kind"          => "profile",
+     "mime_type"     => $mime_type,
+     "size"          => $file["size"],
+     "data"          => new MongoDB\BSON\Binary($image_data, MongoDB\BSON\Binary::TYPE_GENERIC),
+     "created_at"    => new MongoDB\BSON\UTCDateTime()
+    ]);
 
-    if(!is_dir($upload_dir))
-    {
-     mkdir($upload_dir, 0755, true);
-    }
-
-    $file_name   = bin2hex(random_bytes(16)) . "." . $allowed_types[$mime_type];
-    $target_path = $upload_dir . "/" . $file_name;
-
-    if(!move_uploaded_file($file["tmp_name"], $target_path))
-    {
-     jsonError("Impossibile salvare l'immagine", 500, "SAVE_ERROR");
-    }
-
-    $profile_image = "uploads/profiles/" . $file_name;
+    $upload_id = (string)$upload_result->getInsertedId();
 
     $db->users->updateOne(
      ["_id" => $current_user_id],
-     ['$set' => ["profile_image" => $profile_image, "updated_at" => new MongoDB\BSON\UTCDateTime()]]
+     ['$set' => ["profile_image" => $upload_id, "updated_at" => new MongoDB\BSON\UTCDateTime()]]
     );
 
     jsonResponse(
     [
      "success" => true,
-     "data"    => ["profile_image" => $profile_image],
+     "data"    =>
+     [
+      "profile_image_id"  => $upload_id,
+      "profile_image_url" => "/api/uploads/" . $upload_id
+     ],
      "message" => "Immagine caricata con successo"
     ]);
    }

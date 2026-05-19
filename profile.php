@@ -54,14 +54,17 @@
      $error = "Formato non valido. Usa JPG, PNG, WEBP o GIF.";
     else
     {
-     $upload_dir = __DIR__ . "/uploads/profiles";
-     if(!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
-
-     $file_name = bin2hex(random_bytes(16)) . "." . $allowed[$mime_type];
-     if(!move_uploaded_file($tmp_path, $upload_dir . "/" . $file_name))
-      $error = "Impossibile salvare l'immagine.";
-     else
-      $profile_image = "uploads/profiles/" . $file_name;
+     $image_data    = file_get_contents($tmp_path);
+     $upload_result = $db->uploads->insertOne(
+     [
+      "owner_user_id" => $id,
+      "kind"          => "profile",
+      "mime_type"     => $mime_type,
+      "size"          => $file_size,
+      "data"          => new MongoDB\BSON\Binary($image_data, MongoDB\BSON\Binary::TYPE_GENERIC),
+      "created_at"    => new MongoDB\BSON\UTCDateTime()
+     ]);
+     $profile_image = (string)$upload_result->getInsertedId();
     }
    }
   }
@@ -143,7 +146,7 @@
      <div class="profile-edit-hero">
       <label class="profile-photo-label" for="profile_image_input">
        <?php if(!empty($user->profile_image)){ ?>
-        <img src="<?= htmlspecialchars($user->profile_image) ?>" class="profile-photo-large" alt="Foto profilo">
+        <img src="<?= htmlspecialchars(profileImageUrl($user->profile_image)) ?>" class="profile-photo-large" alt="Foto profilo">
        <?php } else { ?>
         <div class="profile-photo-placeholder-large"><?= strtoupper(substr($user->name ?? "?", 0, 1)) ?></div>
        <?php } ?>

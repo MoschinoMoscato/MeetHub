@@ -51,9 +51,8 @@
    {
     try
     {
-     // Elimina immagine profilo dal server
-     if(!empty($user->profile_image) && file_exists(__DIR__ . "/" . $user->profile_image))
-      @unlink(__DIR__ . "/" . $user->profile_image);
+     // Elimina upload dell'utente (profile + chat images)
+     $db->uploads->deleteMany(["owner_user_id" => $id]);
 
      // Elimina dati dal DB
      $db->interactions->deleteMany(['$or' => [["from_user_id" => $id], ["to_user_id" => $id]]]);

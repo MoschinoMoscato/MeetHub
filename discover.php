@@ -286,7 +286,7 @@
        <!--- Foto + nome --->
        <div class="card-photo">
         <?php if(!empty($profile->profile_image)){ ?>
-         <img src="<?= htmlspecialchars($profile->profile_image) ?>" alt="<?= $pname ?>">
+         <img src="<?= htmlspecialchars(profileImageUrl($profile->profile_image)) ?>" alt="<?= $pname ?>">
         <?php } else { ?>
          <div class="card-photo-placeholder"><?= strtoupper(substr($profile->name ?? "?", 0, 1)) ?></div>
         <?php } ?>

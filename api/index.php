@@ -62,6 +62,10 @@
    require_once __DIR__ . "/interactions.php";
    break;
 
+  case "uploads":
+   require_once __DIR__ . "/uploads.php";
+   break;
+
   default:
    jsonError("Endpoint non trovato", 404, "NOT_FOUND");
  }

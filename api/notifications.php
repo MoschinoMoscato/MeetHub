@@ -35,7 +35,7 @@
     [
      "id"    => (string)$row->_id,
      "name"  => (string)($sender->name ?? "?"),
-     "img"   => $sender->profile_image ?? null,
+     "img"   => profileImageUrl($sender->profile_image ?? null),
      "count" => (int)$row->count
     ];
    }
@@ -68,7 +68,7 @@
      $match_items[] =
      [
       "name"     => (string)($other->name ?? "?"),
-      "img"      => $other->profile_image ?? null,
+      "img"      => profileImageUrl($other->profile_image ?? null),
       "id"       => (string)$other_id,
       "match_id" => (string)$m->_id
      ];

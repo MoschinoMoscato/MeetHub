@@ -60,15 +60,24 @@
   $messages = [];
   foreach($cursor as $msg)
   {
+   $image_url = null;
+   if(($msg->type ?? "text") === "image")
+   {
+    if(isset($msg->upload_id))
+     $image_url = "/api/uploads/" . (string)$msg->upload_id;
+    elseif(isset($msg->image_path) && $msg->image_path)
+     $image_url = "/" . $msg->image_path;
+   }
+
    $messages[] =
    [
-    "id"         => (string)$msg->_id,
-    "from"       => (string)$msg->from_user_id,
-    "type"       => $msg->type ?? "text",
-    "text"       => $msg->text ?? null,
-    "image_path" => $msg->image_path ?? null,
-    "read"       => $msg->read ?? false,
-    "edited"     => $msg->edited ?? false
+    "id"        => (string)$msg->_id,
+    "from"      => (string)$msg->from_user_id,
+    "type"      => $msg->type ?? "text",
+    "text"      => $msg->text ?? null,
+    "image_url" => $image_url,
+    "read"      => $msg->read ?? false,
+    "edited"    => $msg->edited ?? false
    ];
   }
 
@@ -118,25 +127,18 @@
     exit;
    }
 
-   $ext = "jpg";
-   if($mime === "image/png")  $ext = "png";
-   if($mime === "image/gif")  $ext = "gif";
-   if($mime === "image/webp") $ext = "webp";
+   $image_data    = file_get_contents($file["tmp_name"]);
+   $upload_result = $db->uploads->insertOne(
+   [
+    "owner_user_id" => $current_user_id,
+    "kind"          => "chat_image",
+    "mime_type"     => $mime,
+    "size"          => $file["size"],
+    "data"          => new MongoDB\BSON\Binary($image_data, MongoDB\BSON\Binary::TYPE_GENERIC),
+    "created_at"    => new MongoDB\BSON\UTCDateTime()
+   ]);
 
-   $upload_dir = __DIR__ . "/../uploads/chat/";
-   if(!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
-
-   $filename = bin2hex(random_bytes(16)) . "." . $ext;
-   $filepath = $upload_dir . $filename;
-
-   if(!move_uploaded_file($file["tmp_name"], $filepath))
-   {
-    http_response_code(500);
-    echo json_encode(["error" => "Caricamento fallito"]);
-    exit;
-   }
-
-   $image_path = "uploads/chat/" . $filename;
+   $upload_id = $upload_result->getInsertedId();
 
    try
    {
@@ -145,7 +147,7 @@
      "from_user_id" => $current_user_id,
      "to_user_id"   => $recipient_id,
      "type"         => "image",
-     "image_path"   => $image_path,
+     "upload_id"    => $upload_id,
      "text"         => null,
      "created_at"   => new MongoDB\BSON\UTCDateTime(),
      "read"         => false
@@ -154,7 +156,7 @@
    }
    catch(Throwable $e)
    {
-    @unlink($filepath);
+    $db->uploads->deleteOne(["_id" => $upload_id]);
     http_response_code(500);
     echo json_encode(["error" => "Errore database"]);
    }
@@ -299,10 +301,17 @@
    exit;
   }
 
+  if(isset($msg->upload_id) && $msg->upload_id)
+  {
+   try { $db->uploads->deleteOne(["_id" => $msg->upload_id]); }
+   catch(Throwable $e) {}
+  }
+
+  // Pulizia legacy (filesystem)
   if(isset($msg->image_path) && $msg->image_path)
   {
    $fp = __DIR__ . "/../" . $msg->image_path;
-   if(file_exists($fp)) unlink($fp);
+   if(file_exists($fp)) @unlink($fp);
   }
 
   $db->messages->deleteOne(["_id" => $msg_id]);

@@ -122,4 +122,14 @@
   $input = json_decode(file_get_contents("php://input"), true);
   return is_array($input) ? $input : [];
  }
+
+ // Restituisce l'URL corretto per un'immagine: /api/uploads/{id} se è un ObjectId,
+ // altrimenti il percorso legacy sul filesystem (compatibilità con dati precedenti).
+ function profileImageUrl($val)
+ {
+  if(!$val) return null;
+  $s = (string)$val;
+  if(preg_match('/^[0-9a-f]{24}$/i', $s)) return "/api/uploads/" . $s;
+  return "/" . $s;
+ }
 ?>

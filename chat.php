@@ -140,7 +140,7 @@
       <a class="chat-contact <?= ($selected_user && (string)$selected_user->_id === $uid) ? "active" : "" ?>" href="/chat?chat=<?= urlencode($uid) ?>">
        <div class="chat-contact-avatar">
         <?php if(!empty($match_user->profile_image)){ ?>
-         <img class="avatar-image" src="<?= htmlspecialchars($match_user->profile_image) ?>" alt="">
+         <img class="avatar-image" src="<?= htmlspecialchars(profileImageUrl($match_user->profile_image)) ?>" alt="">
         <?php } else { ?>
          <?= strtoupper(substr($match_user->name ?? "?", 0, 1)) ?>
         <?php } ?>
@@ -163,7 +163,7 @@
       <a class="chat-back-btn" href="/chat" title="Torna alla lista" onclick="event.stopPropagation()">&#8249;</a>
       <div class="chat-contact-avatar">
        <?php if(!empty($selected_user->profile_image)){ ?>
-        <img class="avatar-image" src="<?= htmlspecialchars($selected_user->profile_image) ?>" alt="">
+        <img class="avatar-image" src="<?= htmlspecialchars(profileImageUrl($selected_user->profile_image)) ?>" alt="">
        <?php } else { ?>
         <?= strtoupper(substr($selected_user->name ?? "?", 0, 1)) ?>
        <?php } ?>
@@ -196,9 +196,17 @@
           </div>
          <?php } ?>
          <div class="msg-content">
-          <?php if(($msg->type ?? "text") === "image" && !empty($msg->image_path)){ ?>
+          <?php
+           $msg_img_url = null;
+           if(($msg->type ?? "text") === "image")
+           {
+            if(isset($msg->upload_id)) $msg_img_url = "/api/uploads/" . (string)$msg->upload_id;
+            elseif(!empty($msg->image_path)) $msg_img_url = "/" . $msg->image_path;
+           }
+          ?>
+          <?php if($msg_img_url){ ?>
            <div class="message-bubble message-bubble--img">
-            <img class="chat-image" src="<?= htmlspecialchars($msg->image_path) ?>" alt="Immagine" loading="lazy">
+            <img class="chat-image" src="<?= htmlspecialchars($msg_img_url) ?>" alt="Immagine" loading="lazy">
            </div>
           <?php } else { ?>
            <div class="message-bubble"><?= nl2br(htmlspecialchars($msg->text ?? "")) ?></div>
@@ -339,10 +347,10 @@
 
      html += '<div class="msg-content">';
 
-     if(msg.type === "image" && msg.image_path)
+     if(msg.type === "image" && msg.image_url)
      {
       html += '<div class="message-bubble message-bubble--img">';
-      html += '<img class="chat-image" src="' + escapeHtml(msg.image_path) + '" alt="Immagine" loading="lazy">';
+      html += '<img class="chat-image" src="' + escapeHtml(msg.image_url) + '" alt="Immagine" loading="lazy">';
       html += '</div>';
      }
      else
@@ -676,9 +684,9 @@
    {
     var html = '<button class="upm-back-btn" onclick="closeProfile()">&#8249; Indietro</button>';
 
-    html += '<div class="upm-photo' + (!user.profile_image ? " upm-photo-placeholder" : "") + '">';
-    if(user.profile_image)
-     html += '<img src="' + escapeHtml(user.profile_image) + '" alt="">';
+    html += '<div class="upm-photo' + (!user.profile_image_url ? " upm-photo-placeholder" : "") + '">';
+    if(user.profile_image_url)
+     html += '<img src="' + escapeHtml(user.profile_image_url) + '" alt="">';
     else
      html += escapeHtml((user.name || "?").charAt(0).toUpperCase());
     html += '</div>';

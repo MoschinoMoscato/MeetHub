@@ -84,24 +84,17 @@
     }
     else
     {
-     $upload_dir = __DIR__ . "/uploads/profiles";
-
-     if(!is_dir($upload_dir))
-     {
-      mkdir($upload_dir, 0755, true);
-     }
-
-     $file_name   = bin2hex(random_bytes(16)) . "." . $allowed_types[$mime_type];
-     $target_path = $upload_dir . "/" . $file_name;
-
-     if(!move_uploaded_file($tmp_path, $target_path))
-     {
-      $error = "Impossibile salvare l'immagine caricata.";
-     }
-     else
-     {
-      $profile_image = "uploads/profiles/" . $file_name;
-     }
+     $image_data    = file_get_contents($tmp_path);
+     $upload_result = $db->uploads->insertOne(
+     [
+      "owner_user_id" => $id,
+      "kind"          => "profile",
+      "mime_type"     => $mime_type,
+      "size"          => $file_size,
+      "data"          => new MongoDB\BSON\Binary($image_data, MongoDB\BSON\Binary::TYPE_GENERIC),
+      "created_at"    => new MongoDB\BSON\UTCDateTime()
+     ]);
+     $profile_image = (string)$upload_result->getInsertedId();
     }
    }
   }
@@ -233,7 +226,7 @@
         <small class="text-muted">Formato: JPG, PNG, WEBP o GIF (max 5MB)</small>
         <?php if(!empty($user->profile_image)){ ?>
          <div class="onboarding-profile-preview">
-          <img src="<?= htmlspecialchars($user->profile_image) ?>" alt="Immagine profilo attuale">
+          <img src="<?= htmlspecialchars(profileImageUrl($user->profile_image)) ?>" alt="Immagine profilo attuale">
          </div>
         <?php } ?>
        </div>

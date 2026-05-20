@@ -458,6 +458,7 @@
 
      if(xhr.status !== 200)
      {
+      console.error("sendAction HTTP " + xhr.status + ":", xhr.responseText);
       alert("Interazione non salvata. Ricarico la pagina.");
       location.reload();
       return;
@@ -466,10 +467,18 @@
      try
      {
       var result = JSON.parse(xhr.responseText);
-      if(result.success && result.match) showMatchNotification();
+      if(!result.success)
+      {
+       console.error("sendAction fallita:", result);
+       alert("Interazione non salvata. Ricarico la pagina.");
+       location.reload();
+       return;
+      }
+      if(result.match) showMatchNotification();
      }
      catch(e)
      {
+      console.error("sendAction parse error:", e);
       alert("Interazione non salvata. Ricarico la pagina.");
       location.reload();
      }
@@ -477,6 +486,7 @@
 
     xhr.onerror = function()
     {
+     console.error("sendAction errore di rete");
      alert("Interazione non salvata. Ricarico la pagina.");
      location.reload();
     };

@@ -3,7 +3,7 @@
  $current_user_id = new MongoDB\BSON\ObjectId($_SESSION["user_id"]);
  $db              = getDB();
 
- if(!isset($id)) $id = null;// Assicura che $id sia definito (passato da index.php)
+ if(!isset($id)) $id = null;
 
  switch($method)
  {
@@ -26,16 +26,24 @@
     jsonError("ID utente mancante", 400, "MISSING_USER_ID");
    }
 
+   // ── 1. Valida ObjectId — catch solo per parsing ────────────────────────────
    try
    {
     $to_id = new MongoDB\BSON\ObjectId($target_user_id);
+   }
+   catch(Exception $e)
+   {
+    jsonError("ID utente non valido", 400, "INVALID_USER_ID");
+   }
 
-    if((string)$current_user_id === (string)$to_id)
-    {
-     jsonError("Non puoi interagire con te stesso", 403, "SELF_INTERACTION");
-    }
+   if((string)$current_user_id === (string)$to_id)
+   {
+    jsonError("Non puoi interagire con te stesso", 403, "SELF_INTERACTION");
+   }
 
-    // Salva o aggiorna l'interazione
+   // ── 2. Salva / aggiorna l'interazione ─────────────────────────────────────
+   try
+   {
     $db->interactions->updateOne(
      ["from_user_id" => $current_user_id, "to_user_id" => $to_id],
      [
@@ -44,15 +52,22 @@
      ],
      ["upsert" => true]
     );
+   }
+   catch(Throwable $e)
+   {
+    jsonError("Errore durante il salvataggio dell'interazione: " . $e->getMessage(), 500, "DB_ERROR");
+   }
 
-    $match        = false;
-    $match_user_id = null;
+   // ── 3. Controlla like reciproco e crea il match ───────────────────────────
+   $match         = false;
+   $match_user_id = null;
+   $match_id      = null;
 
-    if($action === "like")
+   if($action === "like")
+   {
+    try
     {
-     // Verifica se c'è un like reciproco
-     $reciprocal_like = $db->interactions->findOne(
-     [
+     $reciprocal_like = $db->interactions->findOne([
       "from_user_id" => $to_id,
       "to_user_id"   => $current_user_id,
       "action"       => "like"
@@ -60,42 +75,81 @@
 
      if($reciprocal_like)
      {
-      // Crea il match
-      $db->matches->updateOne(
-       ["users" => ['$all' => [$current_user_id, $to_id]]],
-       ['$setOnInsert' =>
+      // Pair_key stabile: i due ID ordinati alfabeticamente garantiscono unicità
+      $pair = [(string)$current_user_id, (string)$to_id];
+      sort($pair);
+      $pair_key = implode("_", $pair);
+
+      // Cerca match esistente tramite pair_key o tramite users (match pre-esistenti)
+      $existing_match = $db->matches->findOne([
+       '$or' =>
        [
+        ["pair_key" => $pair_key],
+        ["users"    => ['$all' => [$current_user_id, $to_id]]]
+       ]
+      ]);
+
+      if(!$existing_match)
+      {
+       // insertOne evita il bug del $all in contesto upsert
+       $insert_result = $db->matches->insertOne([
         "users"      => [$current_user_id, $to_id],
+        "pair_key"   => $pair_key,
+        "seen_by"    => [],
         "created_at" => new MongoDB\BSON\UTCDateTime()
-       ]],
-       ["upsert" => true]
-      );
+       ]);
+       $match_id = (string)$insert_result->getInsertedId();
+
+       // Indice pair_key — idempotente, sparse per non rompere match senza il campo
+       try
+       {
+        $db->matches->createIndex(
+         ["pair_key" => 1],
+         ["unique" => true, "sparse" => true]
+        );
+       }
+       catch(Throwable $e) {}
+      }
+      else
+      {
+       $match_id = (string)$existing_match->_id;
+
+       // Aggiunge pair_key ai match vecchi che ne sono privi
+       if(empty($existing_match->pair_key))
+       {
+        $db->matches->updateOne(
+         ["_id" => $existing_match->_id],
+         ['$set' => ["pair_key" => $pair_key]]
+        );
+       }
+      }
 
       $match         = true;
       $match_user_id = (string)$to_id;
      }
     }
-
-    $response =
-    [
-     "success" => true,
-     "action"  => $action,
-     "match"   => $match
-    ];
-
-    if($match)
+    catch(Throwable $e)
     {
-     $response["match_user_id"] = $match_user_id;
-     $response["message"]       = "È un match!";
+     jsonError("Errore durante la creazione del match: " . $e->getMessage(), 500, "MATCH_ERROR");
     }
-
-    jsonResponse($response);
    }
-   catch(Exception $e)
+
+   // ── 4. Risposta ───────────────────────────────────────────────────────────
+   $response =
+   [
+    "success" => true,
+    "action"  => $action,
+    "match"   => $match
+   ];
+
+   if($match)
    {
-    jsonError("ID utente non valido", 400, "INVALID_USER_ID");
+    $response["match_user_id"] = $match_user_id;
+    $response["match_id"]      = $match_id;
+    $response["message"]       = "È un match!";
    }
 
+   jsonResponse($response);
    break;
 
   default:

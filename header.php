@@ -472,7 +472,7 @@ function dismissMatch(e, el)
  function go() { if(!navigated) { navigated = true; window.location.href = href; } }
 
  var xhr = new XMLHttpRequest();
- xhr.open("POST", "notifications.php");
+ xhr.open("POST", "/api/notifications.php");
  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
  xhr.onreadystatechange = function() { if(xhr.readyState === 4) go(); };
  xhr.send("action=seen_match&match_id=" + encodeURIComponent(matchId));

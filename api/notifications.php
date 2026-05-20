@@ -14,6 +14,31 @@
  $db     = getDB();
  $cur_id = new MongoDB\BSON\ObjectId($_SESSION["user_id"]);
 
+ // ── POST: segna match come visto dall'utente corrente ─────────────────────────
+ if($_SERVER["REQUEST_METHOD"] === "POST")
+ {
+  $action   = $_POST["action"]   ?? "";
+  $match_id = $_POST["match_id"] ?? "";
+
+  if($action === "seen_match" && $match_id)
+  {
+   try
+   {
+    $mid = new MongoDB\BSON\ObjectId($match_id);
+    // $addToSet: aggiunge cur_id a seen_by solo se non c'è già
+    $db->matches->updateOne(
+     ["_id" => $mid, "users" => $cur_id],
+     ['$addToSet' => ["seen_by" => $cur_id]]
+    );
+   }
+   catch(Throwable $e) {}
+  }
+
+  echo json_encode(["success" => true]);
+  exit;
+ }
+
+ // ── GET: restituisce notifiche (messaggi non letti + match non visti) ─────────
  $message_items  = [];
  $match_items    = [];
 

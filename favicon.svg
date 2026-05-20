@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+ <defs>
+  <linearGradient id="mg" x1="0%" y1="0%" x2="100%" y2="100%">
+   <stop offset="0%" stop-color="#FF4B6E"/>
+   <stop offset="100%" stop-color="#F5A623"/>
+  </linearGradient>
+ </defs>
+ <rect width="64" height="64" rx="12" fill="#0F0A1E"/>
+ <text x="50%" y="54%"
+       text-anchor="middle"
+       dominant-baseline="middle"
+       font-family="Georgia, 'Times New Roman', serif"
+       font-size="46"
+       font-weight="900"
+       fill="url(#mg)">M</text>
+</svg>

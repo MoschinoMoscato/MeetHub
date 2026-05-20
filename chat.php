@@ -110,6 +110,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MeetHub – Chat</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
   <link rel="stylesheet" href="style.css?v=<?= filemtime('style.css') ?>">
   <style>
    .message-status    { font-size: 0.65rem; margin-top: 0.25rem; text-align: right; }

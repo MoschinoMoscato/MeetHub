@@ -28,6 +28,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MeetHub – Trova il tuo prossimo grande amore</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
   <link rel="stylesheet" href="/style.css?v=<?php echo filemtime(__DIR__ . '/style.css'); ?>">
  </head>
 

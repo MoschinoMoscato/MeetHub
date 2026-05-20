@@ -3001,165 +3001,75 @@ input[type="range"]::-webkit-slider-thumb
  .lp-stat:nth-child(odd)  { border-right: 1px solid var(--border); }
  .lp-stat:nth-last-child(-n+2) { border-bottom: none; }
  .lp-final-cta   { padding: 5rem 1.5rem; }
- .lp-match-demo  { width: 300px; height: 300px; }
+ .lp-demo-cards  { gap: .75rem; }
 }
 
 /* ── Match Demo Widget ───────────────────────────────────────────────────────── */
 .lp-match-demo
 {
- position: relative;
- width: 340px;
- height: 340px;
  flex-shrink: 0;
  margin: 0 auto;
-}
-
-.lp-ma-ring
-{
- position: absolute;
- width: 220px;
- height: 220px;
- left: 50%;
- top: 50%;
- border-radius: 50%;
- border: 2px solid var(--coral);
- animation: lpMatchRing 7s ease-in-out infinite;
- pointer-events: none;
-}
-
-.lp-ma-heartbg
-{
- position: absolute;
- font-size: 9rem;
- left: 50%;
- top: 50%;
- transform: translate(-50%, -50%);
- opacity: 0.06;
- pointer-events: none;
- user-select: none;
- animation: lpHeartBgPulse 3.5s ease-in-out infinite;
-}
-
-.lp-ma-profile
-{
- position: absolute;
- top: 50%;
- left: 50%;
  display: flex;
  flex-direction: column;
  align-items: center;
- gap: .45rem;
+ gap: 1.5rem;
 }
 
-.lp-ma-a { animation: lpMatchA 7s ease-in-out infinite; }
-.lp-ma-b { animation: lpMatchB 7s ease-in-out infinite; }
-
-.lp-ma-av
+.lp-demo-cards
 {
- width: 72px;
- height: 72px;
+ display: flex;
+ gap: 1.25rem;
+}
+
+.lp-demo-card
+{
+ background: var(--card);
+ border: 1px solid var(--border);
+ border-radius: 20px;
+ padding: 1.5rem 1.75rem;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ gap: .6rem;
+ box-shadow: 0 20px 50px rgba(0,0,0,.4);
+ opacity: 0;
+}
+
+.lp-demo-card--a { animation: lpFadeUp .7s ease .5s forwards; }
+.lp-demo-card--b { animation: lpFadeUp .7s ease .7s forwards; }
+
+.lp-demo-avatar
+{
+ width: 68px;
+ height: 68px;
  border-radius: 50%;
  display: flex;
  align-items: center;
  justify-content: center;
- font-size: 1.85rem;
+ font-size: 1.75rem;
  font-weight: 800;
  color: #fff;
- box-shadow: 0 8px 28px rgba(0,0,0,.45);
- border: 3px solid rgba(255,255,255,.18);
+ border: 3px solid rgba(255,255,255,.15);
 }
 
-.lp-ma-name
-{
- font-size: .72rem;
- font-weight: 600;
- color: rgba(255,255,255,.75);
- white-space: nowrap;
- background: rgba(0,0,0,.35);
- padding: .2rem .65rem;
- border-radius: 999px;
- backdrop-filter: blur(8px);
-}
+.lp-demo-name { font-size: .92rem; font-weight: 700; }
+.lp-demo-city { font-size: .78rem; color: var(--text-muted); }
 
-.lp-ma-heart
+.lp-demo-badge
 {
- position: absolute;
- left: 50%;
- top: 50%;
- font-size: 2.8rem;
- pointer-events: none;
- animation: lpMatchHeart 7s ease-in-out infinite;
-}
-
-.lp-ma-label
-{
- position: absolute;
- bottom: 36px;
- left: 50%;
+ background: linear-gradient(135deg, var(--coral), var(--gold));
+ color: #fff;
  font-size: .9rem;
  font-weight: 700;
- color: #fff;
- background: linear-gradient(135deg, var(--coral), var(--gold));
- padding: .45rem 1.15rem;
+ padding: .55rem 1.4rem;
  border-radius: 999px;
- white-space: nowrap;
- pointer-events: none;
- box-shadow: 0 4px 22px rgba(255,75,110,.45);
- animation: lpMatchLabel 7s ease-in-out infinite;
+ box-shadow: 0 4px 22px rgba(255,75,110,.4);
+ opacity: 0;
+ animation: lpFadeUp .7s ease .9s forwards;
 }
 
-.lp-ma-particle
+@keyframes lpFadeUp
 {
- position: absolute;
- left: 50%;
- top: 50%;
- font-size: 1.35rem;
- pointer-events: none;
- animation: lpParticle 7s ease-in-out infinite;
- animation-delay: var(--delay, 0s);
-}
-
-/* Keyframes */
-@keyframes lpMatchA
-{
- 0%, 18%   { transform: translate(calc(-50% - 128px), -50%); }
- 40%, 56%  { transform: translate(calc(-50% - 2px),   -50%); }
- 78%, 100% { transform: translate(calc(-50% - 128px), -50%); }
-}
-@keyframes lpMatchB
-{
- 0%, 18%   { transform: translate(calc(-50% + 128px), -50%); }
- 40%, 56%  { transform: translate(calc(-50% + 2px),   -50%); }
- 78%, 100% { transform: translate(calc(-50% + 128px), -50%); }
-}
-@keyframes lpMatchHeart
-{
- 0%, 34%   { transform: translate(-50%, -50%) scale(.6);  opacity: .15; }
- 44%, 54%  { transform: translate(-50%, -50%) scale(1.9); opacity: 1;   }
- 72%, 100% { transform: translate(-50%, -50%) scale(.85); opacity: .2;  }
-}
-@keyframes lpMatchLabel
-{
- 0%, 37%   { opacity: 0; transform: translateX(-50%) scale(.85); }
- 46%, 52%  { opacity: 1; transform: translateX(-50%) scale(1);   }
- 66%, 100% { opacity: 0; transform: translateX(-50%) scale(.9);  }
-}
-@keyframes lpParticle
-{
- 0%, 40%  { transform: translate(-50%, -50%) scale(0); opacity: 0; }
- 44%      { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
- 68%      { transform: translate(calc(-50% + var(--px)), calc(-50% + var(--py))) scale(.5); opacity: 0; }
- 100%     { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-}
-@keyframes lpMatchRing
-{
- 0%, 37%  { transform: translate(-50%, -50%) scale(.4); opacity: 0; }
- 42%      { transform: translate(-50%, -50%) scale(.4); opacity: .7; }
- 64%      { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
- 100%     { transform: translate(-50%, -50%) scale(.4); opacity: 0; }
-}
-@keyframes lpHeartBgPulse
-{
- 0%, 100% { transform: translate(-50%, -50%) scale(1); }
- 50%      { transform: translate(-50%, -50%) scale(1.07); }
+ from { opacity: 0; transform: translateY(18px); }
+ to   { opacity: 1; transform: translateY(0); }
 }

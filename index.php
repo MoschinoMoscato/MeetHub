@@ -70,30 +70,24 @@
      </div>
     </div>
 
-    <!-- Match animation widget -->
+    <!-- Match demo widget -->
     <div class="lp-match-demo" aria-hidden="true">
-     <div class="lp-ma-ring"></div>
-     <div class="lp-ma-heartbg">❤️</div>
+     <div class="lp-demo-cards">
 
-     <div class="lp-ma-profile lp-ma-a">
-      <div class="lp-ma-av" style="background:linear-gradient(135deg,#FF4B6E,#F5A623)">S</div>
-      <div class="lp-ma-name">Sofia, 26</div>
+      <div class="lp-demo-card lp-demo-card--a">
+       <div class="lp-demo-avatar" style="background:linear-gradient(135deg,#FF4B6E,#F5A623)">S</div>
+       <div class="lp-demo-name">Sofia, 26</div>
+       <div class="lp-demo-city">Milano</div>
+      </div>
+
+      <div class="lp-demo-card lp-demo-card--b">
+       <div class="lp-demo-avatar" style="background:linear-gradient(135deg,#622CC6,#FF4B6E)">M</div>
+       <div class="lp-demo-name">Marco, 28</div>
+       <div class="lp-demo-city">Roma</div>
+      </div>
+
      </div>
-
-     <div class="lp-ma-profile lp-ma-b">
-      <div class="lp-ma-av" style="background:linear-gradient(135deg,#622CC6,#FF4B6E)">M</div>
-      <div class="lp-ma-name">Marco, 28</div>
-     </div>
-
-     <div class="lp-ma-heart">❤️</div>
-     <div class="lp-ma-label">È un match! 💕</div>
-
-     <div class="lp-ma-particle" style="--px:80px;--py:-70px;--delay:0s">💕</div>
-     <div class="lp-ma-particle" style="--px:-75px;--py:-80px;--delay:.08s">✨</div>
-     <div class="lp-ma-particle" style="--px:90px;--py:60px;--delay:.05s">💖</div>
-     <div class="lp-ma-particle" style="--px:-85px;--py:50px;--delay:.12s">⭐</div>
-     <div class="lp-ma-particle" style="--px:20px;--py:-100px;--delay:.03s">💗</div>
-     <div class="lp-ma-particle" style="--px:-30px;--py:95px;--delay:.1s">✨</div>
+     <div class="lp-demo-badge">❤️ Match trovato!</div>
     </div>
 
    </div>
@@ -181,7 +175,7 @@
   <!-- ── FOOTER ────────────────────────────────────────────────────────────── -->
   <footer class="lp-footer">
    <div class="lp-logo" style="font-size:1.1rem">MeetHub</div>
-   <p>© 2026 MeetHub · Dove le storie d'amore iniziano (e a volte finiscono, ma è la vita)</p>
+   <p>© 2026 MeetHub · Dove le storie d'amore iniziano</p>
    <div class="lp-footer-links">
     <a href="#">Termini di servizio</a>
     <a href="#">Privacy Policy</a>

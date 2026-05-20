@@ -64,8 +64,9 @@
   $selected_chat_id = $first_key;
  }
 
- // Caricamento messaggi iniziali (server-side per il primo paint)
- $messages = [];
+ // Caricamento messaggi iniziali (ultimi 50, server-side per il primo paint)
+ $messages               = [];
+ $has_more_older_initial = false;
 
  if($selected_user)
  {
@@ -84,9 +85,12 @@
     ["from_user_id" => $selected_id,     "to_user_id" => $current_user_id]
    ]
   ],
-  ["sort" => ["created_at" => 1], "limit" => 200]);
+  ["sort" => ["_id" => -1], "limit" => 51]);
 
-  $messages = iterator_to_array($messages_cursor, false);
+  $messages               = iterator_to_array($messages_cursor, false);
+  $has_more_older_initial = count($messages) > 50;
+  if($has_more_older_initial) array_pop($messages);
+  $messages = array_reverse($messages);
 
   // Segna il match come visto (anche se l'utente ha aperto la chat manualmente)
   try
@@ -138,7 +142,12 @@
      </div>
     <?php } else { ?>
      <?php foreach($matched_users as $uid => $match_user){ ?>
-      <a class="chat-contact <?= ($selected_user && (string)$selected_user->_id === $uid) ? "active" : "" ?>" href="/chat?chat=<?= urlencode($uid) ?>">
+      <a class="chat-contact <?= ($selected_user && (string)$selected_user->_id === $uid) ? "active" : "" ?>"
+         href="/chat?chat=<?= urlencode($uid) ?>"
+         data-user-id="<?= htmlspecialchars($uid) ?>"
+         data-name="<?= htmlspecialchars($match_user->name ?? "Utente") ?>"
+         data-city="<?= htmlspecialchars($match_user->city ?? "") ?>"
+         data-img="<?= htmlspecialchars(profileImageUrl($match_user) ?? "") ?>">
        <div class="chat-contact-avatar">
         <?php $mu_img = profileImageUrl($match_user); if($mu_img){ ?>
          <img class="avatar-image" src="<?= htmlspecialchars($mu_img) ?>" alt="">
@@ -201,9 +210,9 @@
            $msg_img_url = null;
            if(($msg->type ?? "text") === "image")
            {
-            if(isset($msg->image_id))                    $msg_img_url = "/api/uploads/" . (string)$msg->image_id;
-            elseif(isset($msg->upload_id))               $msg_img_url = "/api/uploads/" . (string)$msg->upload_id;
-            elseif(!empty($msg->image_path))             $msg_img_url = "/" . $msg->image_path;
+            if(isset($msg->image_id))        $msg_img_url = "/api/uploads/" . (string)$msg->image_id;
+            elseif(isset($msg->upload_id))   $msg_img_url = "/api/uploads/" . (string)$msg->upload_id;
+            elseif(!empty($msg->image_path)) $msg_img_url = "/" . $msg->image_path;
            }
           ?>
           <?php if($msg_img_url){ ?>
@@ -272,20 +281,25 @@
 
   <script>
    const current_user_id = "<?= htmlspecialchars((string)$current_user_id) ?>";
-   const recipient_id    = "<?= htmlspecialchars($selected_chat_id) ?>";
+   let recipient_id = "<?= htmlspecialchars($selected_chat_id) ?>";
 
-   const messages_area    = document.getElementById("messages-area");
-   const chat_form        = document.getElementById("chat-form");
-   const message_input    = document.getElementById("message-input");
-   const send_btn         = document.getElementById("send-btn");
-   const chat_file_input  = document.getElementById("chat-file-input");
-   const img_preview      = document.getElementById("chat-img-preview");
-   const img_thumb        = document.getElementById("chat-img-thumb");
-   const img_cancel_btn   = document.getElementById("chat-img-cancel");
-   const chat_header_btn  = document.getElementById("chat-header-btn");
+   let messages_area    = document.getElementById("messages-area");
+   let chat_form        = document.getElementById("chat-form");
+   let message_input    = document.getElementById("message-input");
+   let send_btn         = document.getElementById("send-btn");
+   let chat_file_input  = document.getElementById("chat-file-input");
+   let img_preview      = document.getElementById("chat-img-preview");
+   let img_thumb        = document.getElementById("chat-img-thumb");
+   let img_cancel_btn   = document.getElementById("chat-img-cancel");
+   let chat_header_btn  = document.getElementById("chat-header-btn");
 
-   let refresh_interval = null;
-   let pending_image    = null; // File selezionato ma non ancora inviato
+   let refresh_interval       = null;
+   let pending_image          = null;
+   let messages_loading       = false;
+   let older_messages_loading = false;
+   let oldest_message_id      = "";
+   let latest_message_id      = "";
+   let has_older_messages     = false;
 
    // ── Utilità ──────────────────────────────────────────────────────────────────
 
@@ -322,12 +336,11 @@
     window.location.href = "/";
    }
 
-   // ── Rendering messaggi da JSON ────────────────────────────────────────────────
+   // ── Rendering messaggi ───────────────────────────────────────────────────────
 
-   function renderMessages(messages)
+   function renderMessageList(messages)
    {
-    if(!messages || messages.length === 0)
-     return '<div class="chat-empty"><p>Inizia la conversazione!</p></div>';
+    if(!messages || messages.length === 0) return "";
 
     var html = "";
 
@@ -370,29 +383,100 @@
       html += '</div>';
      }
 
-     html += '</div>'; // .msg-content
-     html += '</div>'; // .message
+     html += '</div>';
+     html += '</div>';
     }
 
     return html;
    }
 
-   // ── Carica messaggi via REST API (GET) ────────────────────────────────────────
+   function renderMessages(messages)
+   {
+    if(!messages || messages.length === 0)
+     return '<div class="chat-empty"><p>Inizia la conversazione!</p></div>';
 
-   function loadMessages()
+    return renderMessageList(messages);
+   }
+
+   // ── Helper cursori ───────────────────────────────────────────────────────────
+
+   function resetChatState()
+   {
+    pending_image          = null;
+    messages_loading       = false;
+    older_messages_loading = false;
+    oldest_message_id      = "";
+    latest_message_id      = "";
+    has_older_messages     = false;
+   }
+
+   function setMessageCursorsFromMessages(messages, hasOlder)
+   {
+    has_older_messages = !!hasOlder;
+
+    if(!messages || messages.length === 0)
+    {
+     oldest_message_id = "";
+     latest_message_id = "";
+     return;
+    }
+
+    oldest_message_id = messages[0].id;
+    latest_message_id = messages[messages.length - 1].id;
+   }
+
+   function updateLatestCursor(messages)
+   {
+    if(!messages || messages.length === 0) return;
+    latest_message_id = messages[messages.length - 1].id;
+    if(!oldest_message_id) oldest_message_id = messages[0].id;
+   }
+
+   function removeEmptyStateIfPresent()
+   {
+    var empty = messages_area ? messages_area.querySelector(".chat-empty") : null;
+    if(empty) empty.remove();
+   }
+
+   function messageAlreadyExists(id)
+   {
+    if(!messages_area || !id) return false;
+
+    var nodes = messages_area.querySelectorAll(".message[data-id]");
+    for(var i = 0; i < nodes.length; i++)
+    {
+     if(nodes[i].dataset.id === id) return true;
+    }
+
+    return false;
+   }
+
+   // ── Polling: solo messaggi nuovi (after_id) ──────────────────────────────────
+
+   function loadMessages(force)
    {
     if(!messages_area || !recipient_id) return;
     if(messages_area.querySelector(".msg-edit-input")) return;
+    if(messages_loading) return;
 
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", "api/messages.php?conversation_with=" + encodeURIComponent(recipient_id));
-    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+    messages_loading = true;
 
+    var url = "api/messages.php?conversation_with=" + encodeURIComponent(recipient_id) + "&limit=50";
+
+    if(latest_message_id)
+     url += "&after_id=" + encodeURIComponent(latest_message_id);
+
+    var xhr      = new XMLHttpRequest();
     var nearBottom = isNearBottom();
+
+    xhr.open("GET", url);
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
     xhr.onreadystatechange = function()
     {
      if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     messages_loading = false;
 
      if(xhr.status === 401) { handleSessionExpired(); return; }
 
@@ -401,20 +485,301 @@
       try
       {
        var result = JSON.parse(xhr.responseText);
-       if(result.success)
+
+       if(result.success && result.messages && result.messages.length > 0)
        {
-        messages_area.innerHTML = renderMessages(result.messages);
-        if(nearBottom) scrollToBottom();
+        var fresh = [];
+
+        for(var i = 0; i < result.messages.length; i++)
+        {
+         if(!messageAlreadyExists(result.messages[i].id))
+          fresh.push(result.messages[i]);
+        }
+
+        if(fresh.length === 0) return;
+
+        removeEmptyStateIfPresent();
+        messages_area.insertAdjacentHTML("beforeend", renderMessageList(fresh));
+        updateLatestCursor(fresh);
+
+        if(nearBottom || force) scrollToBottom();
        }
       }
       catch(e) {}
      }
     };
 
+    xhr.onerror = function() { messages_loading = false; };
+
     xhr.send();
    }
 
-   // ── Invia messaggio di testo via REST API (POST) ──────────────────────────────
+   // ── Caricamento iniziale chat (usato quando si cambia chat via sidebar) ───────
+
+   function loadInitialMessages()
+   {
+    if(!messages_area || !recipient_id) return;
+
+    messages_loading = true;
+    messages_area.innerHTML = '<div class="chat-empty"><p>Caricamento…</p></div>';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "api/messages.php?conversation_with=" + encodeURIComponent(recipient_id) + "&limit=50");
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+    xhr.onreadystatechange = function()
+    {
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     messages_loading = false;
+
+     if(xhr.status === 401) { handleSessionExpired(); return; }
+
+     if(xhr.status === 200)
+     {
+      try
+      {
+       var result = JSON.parse(xhr.responseText);
+
+       if(result.success)
+       {
+        setMessageCursorsFromMessages(result.messages, result.has_more_older);
+        messages_area.innerHTML = renderMessages(result.messages);
+        scrollToBottom();
+       }
+       else
+       {
+        messages_area.innerHTML = '<div class="chat-empty"><p>Errore caricamento chat</p></div>';
+       }
+      }
+      catch(e)
+      {
+       messages_area.innerHTML = '<div class="chat-empty"><p>Risposta non valida</p></div>';
+      }
+     }
+     else
+     {
+      messages_area.innerHTML = '<div class="chat-empty"><p>Errore ' + xhr.status + '</p></div>';
+     }
+    };
+
+    xhr.onerror = function()
+    {
+     messages_loading = false;
+     messages_area.innerHTML = '<div class="chat-empty"><p>Errore di connessione</p></div>';
+    };
+
+    xhr.send();
+   }
+
+   // ── Carica messaggi più vecchi (scroll verso l'alto) ─────────────────────────
+
+   function loadOlderMessages()
+   {
+    if(!messages_area || !recipient_id) return;
+    if(!has_older_messages) return;
+    if(!oldest_message_id) return;
+    if(older_messages_loading) return;
+
+    older_messages_loading = true;
+
+    var oldHeight = messages_area.scrollHeight;
+
+    var url = "api/messages.php?conversation_with=" + encodeURIComponent(recipient_id)
+            + "&before_id=" + encodeURIComponent(oldest_message_id)
+            + "&limit=50";
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", url);
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+    xhr.onreadystatechange = function()
+    {
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+
+     older_messages_loading = false;
+
+     if(xhr.status === 401) { handleSessionExpired(); return; }
+
+     if(xhr.status === 200)
+     {
+      try
+      {
+       var result = JSON.parse(xhr.responseText);
+
+       if(result.success)
+       {
+        has_older_messages = !!result.has_more_older;
+
+        if(result.messages && result.messages.length > 0)
+        {
+         var fresh = [];
+
+         for(var i = 0; i < result.messages.length; i++)
+         {
+          if(!messageAlreadyExists(result.messages[i].id))
+           fresh.push(result.messages[i]);
+         }
+
+         if(fresh.length === 0) return;
+
+         oldest_message_id = fresh[0].id;
+         messages_area.insertAdjacentHTML("afterbegin", renderMessageList(fresh));
+
+         var newHeight = messages_area.scrollHeight;
+         messages_area.scrollTop = newHeight - oldHeight;
+        }
+       }
+      }
+      catch(e) {}
+     }
+    };
+
+    xhr.onerror = function() { older_messages_loading = false; };
+
+    xhr.send();
+   }
+
+   // ── Imposta chat attiva senza ricaricare la pagina ───────────────────────────
+
+   function setActiveChat(userId, name, city, imgUrl, pushUrl)
+   {
+    if(!userId) return;
+
+    recipient_id = userId;
+    resetChatState();
+    clearImagePreview();
+
+    document.querySelectorAll(".chat-contact").forEach(function(a)
+    {
+     a.classList.toggle("active", a.dataset.userId === userId);
+    });
+
+    var layout = document.querySelector(".chat-layout");
+    if(layout) layout.classList.add("has-active-chat");
+
+    var main = document.querySelector(".chat-main");
+    if(!main) return;
+
+    main.innerHTML =
+     '<div class="chat-header chat-header--clickable" id="chat-header-btn" title="Visualizza profilo">' +
+      '<a class="chat-back-btn" href="/chat" title="Torna alla lista" onclick="event.stopPropagation()">&#8249;</a>' +
+      '<div class="chat-contact-avatar">' +
+       (imgUrl
+        ? '<img class="avatar-image" src="' + escapeHtml(imgUrl) + '" alt="">'
+        : escapeHtml((name || "?").charAt(0).toUpperCase())) +
+      '</div>' +
+      '<div style="flex:1; min-width:0">' +
+       '<div class="chat-contact-name">' + escapeHtml(name || "Utente") + '</div>' +
+       '<div class="chat-contact-last">' + escapeHtml(city || "") + '</div>' +
+      '</div>' +
+      '<div class="chat-header-info-icon">' +
+       '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+      '</div>' +
+     '</div>' +
+
+     '<div class="messages-area" id="messages-area">' +
+      '<div class="chat-empty"><p>Caricamento…</p></div>' +
+     '</div>' +
+
+     '<div class="chat-img-preview" id="chat-img-preview">' +
+      '<img id="chat-img-thumb" src="" alt="Anteprima">' +
+      '<button type="button" class="chat-img-cancel" id="chat-img-cancel">&#215;</button>' +
+      '<span class="chat-img-label">Immagine pronta — premi Invia</span>' +
+     '</div>' +
+
+     '<form class="chat-input-area" id="chat-form" novalidate>' +
+      '<input type="hidden" name="recipient_id" value="' + escapeHtml(userId) + '">' +
+      '<label class="chat-attach-btn" for="chat-file-input" title="Allega immagine o scatta foto">' +
+       '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' +
+      '</label>' +
+      '<input type="file" id="chat-file-input" accept="image/*" style="display:none">' +
+      '<input type="text" name="message" id="message-input" placeholder="Scrivi un messaggio…" maxlength="1000" autocomplete="off">' +
+      '<button type="submit" class="btn btn-primary" id="send-btn">Invia</button>' +
+     '</form>';
+
+    rebindChatElements();
+
+    if(pushUrl)
+     history.pushState({ chat: userId }, "", "/chat?chat=" + encodeURIComponent(userId));
+
+    loadInitialMessages();
+   }
+
+   // ── Rebind elementi dopo sostituzione DOM ────────────────────────────────────
+
+   function rebindChatElements()
+   {
+    messages_area   = document.getElementById("messages-area");
+    chat_form       = document.getElementById("chat-form");
+    message_input   = document.getElementById("message-input");
+    send_btn        = document.getElementById("send-btn");
+    chat_file_input = document.getElementById("chat-file-input");
+    img_preview     = document.getElementById("chat-img-preview");
+    img_thumb       = document.getElementById("chat-img-thumb");
+    img_cancel_btn  = document.getElementById("chat-img-cancel");
+    chat_header_btn = document.getElementById("chat-header-btn");
+
+    if(chat_file_input)
+    {
+     chat_file_input.addEventListener("change", function()
+     {
+      var file = chat_file_input.files[0];
+      if(!file) return;
+
+      pending_image = file;
+
+      var reader = new FileReader();
+      reader.onload = function(e)
+      {
+       img_thumb.src = e.target.result;
+       img_preview.classList.add("open");
+       send_btn.textContent = "Invia foto";
+       message_input.focus();
+      };
+      reader.readAsDataURL(file);
+     });
+    }
+
+    if(img_cancel_btn)
+     img_cancel_btn.addEventListener("click", function() { clearImagePreview(); });
+
+    if(chat_form)
+    {
+     chat_form.addEventListener("submit", function(e)
+     {
+      e.preventDefault();
+      if(!recipient_id) return;
+
+      if(pending_image)
+      {
+       sendImageMessage(pending_image);
+      }
+      else
+      {
+       var text = message_input.value.trim();
+       if(!text) return;
+       sendTextMessage(text);
+      }
+     });
+    }
+
+    if(chat_header_btn)
+     chat_header_btn.addEventListener("click", openProfile);
+
+    if(messages_area)
+    {
+     messages_area.addEventListener("scroll", function()
+     {
+      if(messages_area.scrollTop < 80)
+       loadOlderMessages();
+     });
+    }
+
+    if(message_input) message_input.focus();
+   }
+
+   // ── Invia messaggio di testo ─────────────────────────────────────────────────
 
    function sendTextMessage(text)
    {
@@ -448,7 +813,7 @@
        if(result.success)
        {
         message_input.value = "";
-        loadMessages();
+        loadMessages(true);
        }
        else { alert(result.error || "Errore durante l'invio"); }
       }
@@ -468,7 +833,7 @@
     xhr.send(fd);
    }
 
-   // ── Invia immagine via REST API (POST multipart) ──────────────────────────────
+   // ── Invia immagine ───────────────────────────────────────────────────────────
 
    function sendImageMessage(file)
    {
@@ -499,7 +864,7 @@
       try
       {
        var result = JSON.parse(xhr.responseText);
-       if(result.success) { clearImagePreview(); loadMessages(); }
+       if(result.success) { clearImagePreview(); loadMessages(true); }
        else { alert(result.error || "Errore durante il caricamento"); }
       }
       catch(e) { alert("Errore di comunicazione"); }
@@ -517,7 +882,7 @@
     xhr.send(fd);
    }
 
-   // ── Elimina messaggio via REST API (DELETE) ───────────────────────────────────
+   // ── Elimina messaggio ────────────────────────────────────────────────────────
 
    function deleteMessage(msg_id, el)
    {
@@ -531,13 +896,17 @@
     {
      if(xhr.readyState !== XMLHttpRequest.DONE) return;
      if(xhr.status === 401) { handleSessionExpired(); return; }
-     if(xhr.status === 200) { try { var r = JSON.parse(xhr.responseText); if(r.success) el.remove(); } catch(e) {} }
+     if(xhr.status === 200)
+     {
+      try { var r = JSON.parse(xhr.responseText); if(r.success) el.remove(); }
+      catch(e) {}
+     }
     };
 
     xhr.send();
    }
 
-   // ── Modifica messaggio via REST API (PUT) ────────────────────────────────────
+   // ── Modifica messaggio ───────────────────────────────────────────────────────
 
    function editMessage(msg_id, btn)
    {
@@ -548,11 +917,11 @@
     var original_html = bubble.innerHTML;
     var original_text = bubble.textContent.trim();
 
-    var input         = document.createElement("input");
-    input.type        = "text";
-    input.className   = "msg-edit-input";
-    input.value       = original_text;
-    bubble.innerHTML  = "";
+    var input        = document.createElement("input");
+    input.type       = "text";
+    input.className  = "msg-edit-input";
+    input.value      = original_text;
+    bubble.innerHTML = "";
     bubble.appendChild(input);
     input.focus();
     input.select();
@@ -625,59 +994,11 @@
 
    function clearImagePreview()
    {
-    pending_image         = null;
-    chat_file_input.value = "";
-    if(img_thumb)   img_thumb.src = "";
-    if(img_preview) img_preview.classList.remove("open");
-    if(send_btn)    send_btn.textContent = "Invia";
-   }
-
-   if(chat_file_input)
-   {
-    chat_file_input.addEventListener("change", function()
-    {
-     var file = chat_file_input.files[0];
-     if(!file) return;
-
-     pending_image = file;
-
-     var reader = new FileReader();
-     reader.onload = function(e)
-     {
-      img_thumb.src = e.target.result;
-      img_preview.classList.add("open");
-      send_btn.textContent = "Invia foto";
-      message_input.focus();
-     };
-     reader.readAsDataURL(file);
-    });
-   }
-
-   if(img_cancel_btn)
-   {
-    img_cancel_btn.addEventListener("click", function() { clearImagePreview(); });
-   }
-
-   // ── Submit form ───────────────────────────────────────────────────────────────
-
-   if(chat_form)
-   {
-    chat_form.addEventListener("submit", function(e)
-    {
-     e.preventDefault();
-     if(!recipient_id) return;
-
-     if(pending_image)
-     {
-      sendImageMessage(pending_image);
-     }
-     else
-     {
-      var text = message_input.value.trim();
-      if(!text) return;
-      sendTextMessage(text);
-     }
-    });
+    pending_image = null;
+    if(chat_file_input) chat_file_input.value = "";
+    if(img_thumb)       img_thumb.src = "";
+    if(img_preview)     img_preview.classList.remove("open");
+    if(send_btn)        send_btn.textContent = "Invia";
    }
 
    // ── Profilo: rendering e slide-in panel ───────────────────────────────────────
@@ -743,7 +1064,6 @@
     modal.classList.add("open");
 
     var xhr = new XMLHttpRequest();
-    // ✅ Chiama l'endpoint API corretto
     xhr.open("GET", "/api/users/" + encodeURIComponent(recipient_id));
     xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
@@ -758,7 +1078,7 @@
       {
        var result = JSON.parse(xhr.responseText);
        if(result.success)
-        box.innerHTML = renderProfile(result.data);  // ✅ Usa result.data
+        box.innerHTML = renderProfile(result.data);
        else
         box.innerHTML = '<div class="upm-error">' + escapeHtml(result.error || "Errore") + '</div>';
       }
@@ -786,25 +1106,81 @@
     document.getElementById("user-profile-modal").classList.remove("open");
    }
 
-   if(chat_header_btn)  chat_header_btn.addEventListener("click", openProfile);
-   if(document.getElementById("profile-modal-backdrop"))
-    document.getElementById("profile-modal-backdrop").addEventListener("click", closeProfile);
+   var profile_backdrop = document.getElementById("profile-modal-backdrop");
+   if(profile_backdrop)
+    profile_backdrop.addEventListener("click", closeProfile);
 
-   // ── Init ──────────────────────────────────────────────────────────────────────
+   // ── Navigazione sidebar XHR (senza reload) ───────────────────────────────────
+
+   document.querySelectorAll(".chat-contact[data-user-id]").forEach(function(link)
+   {
+    link.addEventListener("click", function(e)
+    {
+     e.preventDefault();
+
+     setActiveChat(
+      this.dataset.userId,
+      this.dataset.name || "Utente",
+      this.dataset.city || "",
+      this.dataset.img  || "",
+      true
+     );
+    });
+   });
+
+   window.addEventListener("popstate", function()
+   {
+    var params = new URLSearchParams(window.location.search);
+    var chatId = params.get("chat") || "";
+
+    if(!chatId)
+    {
+     window.location.href = "/chat";
+     return;
+    }
+
+    var link = document.querySelector('.chat-contact[data-user-id="' + chatId + '"]');
+
+    if(link)
+    {
+     setActiveChat(
+      link.dataset.userId,
+      link.dataset.name || "Utente",
+      link.dataset.city || "",
+      link.dataset.img  || "",
+      false
+     );
+    }
+   });
+
+   // ── Init ─────────────────────────────────────────────────────────────────────
+
+   rebindChatElements();
+
+   // Inizializza cursori dai messaggi già renderizzati lato server
+   if(messages_area && recipient_id)
+   {
+    var server_nodes = messages_area.querySelectorAll(".message[data-id]");
+    if(server_nodes.length > 0)
+    {
+     oldest_message_id  = server_nodes[0].dataset.id;
+     latest_message_id  = server_nodes[server_nodes.length - 1].dataset.id;
+     has_older_messages = <?= $has_more_older_initial ? 'true' : 'false' ?>;
+    }
+   }
 
    if(messages_area) scrollToBottom();
 
    refresh_interval = setInterval(function()
    {
-    if(document.hasFocus() && messages_area) loadMessages();
-   }, 1500);
+    if(document.hidden) return;
+    if(document.hasFocus() && messages_area) loadMessages(false);
+   }, 4000);
 
    window.addEventListener("beforeunload", function()
    {
     if(refresh_interval) clearInterval(refresh_interval);
    });
-
-   if(message_input) message_input.focus();
   </script>
  </body>
 </html>

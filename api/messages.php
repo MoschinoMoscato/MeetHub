@@ -44,18 +44,87 @@
    ['$set' => ["read" => true]]
   );
 
-  $cursor = $db->messages->find(
+  $limit = isset($_GET["limit"]) ? (int)$_GET["limit"] : 50;
+  if($limit < 1)   $limit = 50;
+  if($limit > 100) $limit = 100;
+
+  $after_id_str  = $_GET["after_id"]  ?? "";
+  $before_id_str = $_GET["before_id"] ?? "";
+
+  $base_or =
   [
-   '$or' =>
+   ["from_user_id" => $current_user_id, "to_user_id" => $other_id],
+   ["from_user_id" => $other_id,        "to_user_id" => $current_user_id]
+  ];
+
+  $query   = ['$or' => $base_or];
+  $options =
+  [
+   "projection" =>
    [
-    ["from_user_id" => $current_user_id, "to_user_id" => $other_id],
-    ["from_user_id" => $other_id, "to_user_id" => $current_user_id]
+    "_id"          => 1,
+    "from_user_id" => 1,
+    "type"         => 1,
+    "text"         => 1,
+    "image_id"     => 1,
+    "upload_id"    => 1,
+    "image_path"   => 1,
+    "read"         => 1,
+    "edited"       => 1
    ]
-  ],
-  ["sort" => ["created_at" => 1], "limit" => 200]);
+  ];
+
+  $mode           = "initial";
+  $has_more_older = false;
+
+  if($after_id_str !== "")
+  {
+   try { $after_id = new MongoDB\BSON\ObjectId($after_id_str); }
+   catch(Exception $e)
+   {
+    http_response_code(400);
+    echo json_encode(["error" => "after_id non valido"]);
+    exit;
+   }
+
+   $query             = ['$and' => [['$or' => $base_or], ["_id" => ['$gt' => $after_id]]]];
+   $options["sort"]   = ["_id" => 1];
+   $options["limit"]  = $limit;
+   $mode              = "after";
+  }
+  elseif($before_id_str !== "")
+  {
+   try { $before_id = new MongoDB\BSON\ObjectId($before_id_str); }
+   catch(Exception $e)
+   {
+    http_response_code(400);
+    echo json_encode(["error" => "before_id non valido"]);
+    exit;
+   }
+
+   $query             = ['$and' => [['$or' => $base_or], ["_id" => ['$lt' => $before_id]]]];
+   $options["sort"]   = ["_id" => -1];
+   $options["limit"]  = $limit + 1;
+   $mode              = "before";
+  }
+  else
+  {
+   $options["sort"]  = ["_id" => -1];
+   $options["limit"] = $limit + 1;
+  }
+
+  $cursor = $db->messages->find($query, $options);
+  $docs   = iterator_to_array($cursor, false);
+
+  if($mode !== "after")
+  {
+   $has_more_older = count($docs) > $limit;
+   if($has_more_older) array_pop($docs);
+   $docs = array_reverse($docs);
+  }
 
   $messages = [];
-  foreach($cursor as $msg)
+  foreach($docs as $msg)
   {
    $image_url = null;
    if(($msg->type ?? "text") === "image")
@@ -82,7 +151,13 @@
    ];
   }
 
-  echo json_encode(["success" => true, "messages" => $messages]);
+  echo json_encode(
+  [
+   "success"        => true,
+   "mode"           => $mode,
+   "has_more_older" => $has_more_older,
+   "messages"       => $messages
+  ]);
   exit;
  }
 

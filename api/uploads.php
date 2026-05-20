@@ -51,8 +51,13 @@
 
   // Sovrascrive application/json impostato da api/index.php
   header("Content-Type: " . ($upload->mime_type ?? "application/octet-stream"), true);
-  header("Cache-Control: public, max-age=31536000, immutable");
-  echo $upload->data->getData();
+  header("Cache-Control: private, max-age=31536000, immutable");
+  header("X-Content-Type-Options: nosniff");
+
+  $data = $upload->data->getData();
+  header("Content-Length: " . strlen($data));
+
+  echo $data;
   exit;
  }
 

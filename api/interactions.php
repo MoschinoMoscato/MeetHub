@@ -99,16 +99,6 @@
         "created_at" => new MongoDB\BSON\UTCDateTime()
        ]);
        $match_id = (string)$insert_result->getInsertedId();
-
-       // Indice pair_key — idempotente, sparse per non rompere match senza il campo
-       try
-       {
-        $db->matches->createIndex(
-         ["pair_key" => 1],
-         ["unique" => true, "sparse" => true]
-        );
-       }
-       catch(Throwable $e) {}
       }
       else
       {

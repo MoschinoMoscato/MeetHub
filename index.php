@@ -70,24 +70,34 @@
      </div>
     </div>
 
-    <!-- Match demo widget -->
+    <!-- Discover demo widget -->
     <div class="lp-match-demo" aria-hidden="true">
-     <div class="lp-demo-cards">
+     <div class="lp-phone">
 
-      <div class="lp-demo-card lp-demo-card--a">
-       <div class="lp-demo-avatar" style="background:linear-gradient(135deg,#FF4B6E,#F5A623)">S</div>
-       <div class="lp-demo-name">Sofia, 26</div>
-       <div class="lp-demo-city">Milano</div>
+      <div class="lp-phone-header">
+       <span class="lp-phone-logo">MeetHub</span>
+       <span class="lp-phone-title">Scopri</span>
       </div>
 
-      <div class="lp-demo-card lp-demo-card--b">
-       <div class="lp-demo-avatar" style="background:linear-gradient(135deg,#622CC6,#FF4B6E)">M</div>
-       <div class="lp-demo-name">Marco, 28</div>
-       <div class="lp-demo-city">Roma</div>
+      <div class="lp-pcard">
+       <div class="lp-pcard-avatar" style="background:linear-gradient(135deg,#FF4B6E,#F5A623)">S</div>
+       <div class="lp-pcard-info">
+        <div class="lp-pcard-name">Sofia, 24</div>
+        <div class="lp-pcard-city">📍 Milano</div>
+        <div class="lp-pcard-tags">
+         <span>Musica</span><span>Viaggi</span><span>Cucina</span>
+        </div>
+       </div>
       </div>
+
+      <div class="lp-phone-actions">
+       <div class="lp-btn-no">✕</div>
+       <div class="lp-btn-yes">♥</div>
+      </div>
+
+      <div class="lp-match-badge">❤️ È un match!</div>
 
      </div>
-     <div class="lp-demo-badge">❤️ Match trovato!</div>
     </div>
 
    </div>

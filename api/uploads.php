@@ -26,10 +26,8 @@
   }
   elseif($upload->kind === "profile")
   {
-   // Visibile ai match reciproci
-   $authorized = (bool)$db->matches->findOne([
-    "users" => ['$all' => [$current_user_id, $upload->owner_user_id]]
-   ]);
+   // Visibile a qualsiasi utente autenticato (necessario per Discover)
+   $authorized = true;
   }
   elseif($upload->kind === "chat_image")
   {

@@ -171,7 +171,7 @@
   ];
  }
 
- $profiles_cursor = $db->users->find($query, ["limit" => 12]);
+ $profiles_cursor = $db->users->find($query, ["sort" => ["created_at" => -1]]);
  $profiles        = iterator_to_array($profiles_cursor, false);
  // Mostriamo solo profili completi; quelli incompleti vengono filtrati a monte
 
@@ -455,17 +455,31 @@
     xhr.onreadystatechange = function()
     {
      if(xhr.readyState !== XMLHttpRequest.DONE) return;
-     if(xhr.status !== 200) return;
+
+     if(xhr.status !== 200)
+     {
+      alert("Interazione non salvata. Ricarico la pagina.");
+      location.reload();
+      return;
+     }
 
      try
      {
       var result = JSON.parse(xhr.responseText);
       if(result.success && result.match) showMatchNotification();
      }
-     catch(e) { console.error("Errore parsing JSON:", e); }
+     catch(e)
+     {
+      alert("Interazione non salvata. Ricarico la pagina.");
+      location.reload();
+     }
     };
 
-    xhr.onerror = function() { console.error("Errore di rete"); };
+    xhr.onerror = function()
+    {
+     alert("Interazione non salvata. Ricarico la pagina.");
+     location.reload();
+    };
     xhr.send(payload);  // ✅ Invia JSON
    }
 

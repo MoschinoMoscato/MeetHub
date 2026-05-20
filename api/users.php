@@ -25,8 +25,8 @@
       jsonError("Utente non trovato", 404, "USER_NOT_FOUND");
      }
 
-     // Solo i match reciproci possono vedere il profilo
-     $is_match = (bool)$db->matches->findOne(["users" => ['$all' => [$current_user_id, $target_id]]]);
+     // Solo i match reciproci possono vedere il profilo (fonte: interactions)
+     $is_match = usersAreMatched($db, $current_user_id, $target_id);
 
      if(!$is_match)
      {

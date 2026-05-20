@@ -16,16 +16,13 @@
  $current_user_id = new MongoDB\BSON\ObjectId($_SESSION["user_id"]);
  $method          = $_SERVER["REQUEST_METHOD"];
 
- // Verifica match reciproco tra current_user e other
+ // Verifica match reciproco tra current_user e other (delega a usersAreMatched in config.php)
  function verifyMatch($db, $current_user_id, $other_id_str)
  {
   try { $other_id = new MongoDB\BSON\ObjectId($other_id_str); }
   catch(Exception $e) { return false; }
 
-  $a = $db->interactions->findOne(["from_user_id" => $current_user_id, "to_user_id" => $other_id, "action" => "like"]);
-  if(!$a) return false;
-  $b = $db->interactions->findOne(["from_user_id" => $other_id, "to_user_id" => $current_user_id, "action" => "like"]);
-  return (bool)$b;
+  return usersAreMatched($db, $current_user_id, $other_id);
  }
 
  // ─── GET: recupera messaggi della conversazione ───────────────────────────────

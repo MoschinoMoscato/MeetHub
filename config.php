@@ -123,6 +123,29 @@
   return is_array($input) ? $input : [];
  }
 
+ // Verifica se due utenti hanno like reciproco (fonte di verità: interactions).
+ // $user_a e $user_b sono MongoDB\BSON\ObjectId.
+ function usersAreMatched($db, $user_a, $user_b)
+ {
+  if((string)$user_a === (string)$user_b) return false;
+
+  $a_like_b = $db->interactions->findOne([
+   "from_user_id" => $user_a,
+   "to_user_id"   => $user_b,
+   "action"       => "like"
+  ]);
+
+  if(!$a_like_b) return false;
+
+  $b_like_a = $db->interactions->findOne([
+   "from_user_id" => $user_b,
+   "to_user_id"   => $user_a,
+   "action"       => "like"
+  ]);
+
+  return (bool)$b_like_a;
+ }
+
  // Restituisce l'URL per la foto profilo di un utente.
  // Prima scelta: profile_image_id (nuovo campo ObjectId).
  // Fallback legacy: profile_image (vecchio path filesystem).

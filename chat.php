@@ -300,6 +300,7 @@
    let oldest_message_id      = "";
    let latest_message_id      = "";
    let has_older_messages     = false;
+   let active_chat_token      = 0;
 
    // ── Utilità ──────────────────────────────────────────────────────────────────
 
@@ -461,12 +462,15 @@
 
     messages_loading = true;
 
+    var request_token     = active_chat_token;
+    var request_recipient = recipient_id;
+
     var url = "api/messages.php?conversation_with=" + encodeURIComponent(recipient_id) + "&limit=50";
 
     if(latest_message_id)
      url += "&after_id=" + encodeURIComponent(latest_message_id);
 
-    var xhr      = new XMLHttpRequest();
+    var xhr        = new XMLHttpRequest();
     var nearBottom = isNearBottom();
 
     xhr.open("GET", url);
@@ -475,6 +479,8 @@
     xhr.onreadystatechange = function()
     {
      if(xhr.readyState !== XMLHttpRequest.DONE) return;
+     if(request_token !== active_chat_token) return;
+     if(request_recipient !== recipient_id)  return;
 
      messages_loading = false;
 
@@ -509,7 +515,12 @@
      }
     };
 
-    xhr.onerror = function() { messages_loading = false; };
+    xhr.onerror = function()
+    {
+     if(request_token !== active_chat_token) return;
+     if(request_recipient !== recipient_id)  return;
+     messages_loading = false;
+    };
 
     xhr.send();
    }
@@ -521,6 +532,10 @@
     if(!messages_area || !recipient_id) return;
 
     messages_loading = true;
+
+    var request_token     = active_chat_token;
+    var request_recipient = recipient_id;
+
     messages_area.innerHTML = '<div class="chat-empty"><p>Caricamento…</p></div>';
 
     var xhr = new XMLHttpRequest();
@@ -530,6 +545,8 @@
     xhr.onreadystatechange = function()
     {
      if(xhr.readyState !== XMLHttpRequest.DONE) return;
+     if(request_token !== active_chat_token) return;
+     if(request_recipient !== recipient_id)  return;
 
      messages_loading = false;
 
@@ -565,6 +582,8 @@
 
     xhr.onerror = function()
     {
+     if(request_token !== active_chat_token) return;
+     if(request_recipient !== recipient_id)  return;
      messages_loading = false;
      messages_area.innerHTML = '<div class="chat-empty"><p>Errore di connessione</p></div>';
     };
@@ -583,7 +602,9 @@
 
     older_messages_loading = true;
 
-    var oldHeight = messages_area.scrollHeight;
+    var request_token     = active_chat_token;
+    var request_recipient = recipient_id;
+    var oldHeight         = messages_area.scrollHeight;
 
     var url = "api/messages.php?conversation_with=" + encodeURIComponent(recipient_id)
             + "&before_id=" + encodeURIComponent(oldest_message_id)
@@ -596,6 +617,8 @@
     xhr.onreadystatechange = function()
     {
      if(xhr.readyState !== XMLHttpRequest.DONE) return;
+     if(request_token !== active_chat_token) return;
+     if(request_recipient !== recipient_id)  return;
 
      older_messages_loading = false;
 
@@ -635,7 +658,12 @@
      }
     };
 
-    xhr.onerror = function() { older_messages_loading = false; };
+    xhr.onerror = function()
+    {
+     if(request_token !== active_chat_token) return;
+     if(request_recipient !== recipient_id)  return;
+     older_messages_loading = false;
+    };
 
     xhr.send();
    }
@@ -647,6 +675,7 @@
     if(!userId) return;
 
     recipient_id = userId;
+    active_chat_token++;
     resetChatState();
     clearImagePreview();
 
@@ -704,6 +733,101 @@
      history.pushState({ chat: userId }, "", "/chat?chat=" + encodeURIComponent(userId));
 
     loadInitialMessages();
+   }
+
+   // ── Torna alla lista chat senza reload (mobile back) ────────────────────────
+
+   function showChatList(pushUrl)
+   {
+    recipient_id = "";
+    active_chat_token++;
+    resetChatState();
+    clearImagePreview();
+
+    document.querySelectorAll(".chat-contact").forEach(function(a)
+    {
+     a.classList.remove("active");
+    });
+
+    var layout = document.querySelector(".chat-layout");
+    if(layout) layout.classList.remove("has-active-chat");
+
+    var main = document.querySelector(".chat-main");
+
+    if(main)
+    {
+     main.innerHTML =
+      '<div class="chat-empty">' +
+       '<h3>Seleziona un match</h3>' +
+       '<p>Apri una chat dalla colonna di sinistra.</p>' +
+      '</div>';
+    }
+
+    if(pushUrl)
+     history.pushState({}, "", "/chat");
+   }
+
+   // ── Aggiorna spunte "Letto" senza ricaricare messaggi ───────────────────────
+
+   function syncReadStatuses()
+   {
+    if(!recipient_id || !messages_area) return;
+
+    var request_token     = active_chat_token;
+    var request_recipient = recipient_id;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "api/messages.php?conversation_with=" + encodeURIComponent(recipient_id) + "&status_only=1");
+    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+    xhr.onreadystatechange = function()
+    {
+     if(xhr.readyState !== XMLHttpRequest.DONE) return;
+     if(request_token !== active_chat_token) return;
+     if(request_recipient !== recipient_id)  return;
+
+     if(xhr.status === 401) { handleSessionExpired(); return; }
+
+     if(xhr.status === 200)
+     {
+      try
+      {
+       var result = JSON.parse(xhr.responseText);
+
+       if(result.success && result.read_ids)
+       {
+        var nodes = messages_area.querySelectorAll(".message[data-id]");
+
+        for(var i = 0; i < result.read_ids.length; i++)
+        {
+         var id = result.read_ids[i];
+
+         for(var j = 0; j < nodes.length; j++)
+         {
+          if(nodes[j].dataset.id === id)
+          {
+           var status = nodes[j].querySelector(".message-status");
+
+           if(status && !status.querySelector(".read-status"))
+            status.innerHTML = '<span class="read-status">&#10003;&#10003; Letto</span>';
+
+           break;
+          }
+         }
+        }
+       }
+      }
+      catch(e) {}
+     }
+    };
+
+    xhr.onerror = function()
+    {
+     if(request_token !== active_chat_token) return;
+     if(request_recipient !== recipient_id)  return;
+    };
+
+    xhr.send();
    }
 
    // ── Rebind elementi dopo sostituzione DOM ────────────────────────────────────
@@ -766,6 +890,18 @@
 
     if(chat_header_btn)
      chat_header_btn.addEventListener("click", openProfile);
+
+    var back_btn = document.querySelector(".chat-back-btn");
+
+    if(back_btn)
+    {
+     back_btn.addEventListener("click", function(e)
+     {
+      e.preventDefault();
+      e.stopPropagation();
+      showChatList(true);
+     });
+    }
 
     if(messages_area)
     {
@@ -1135,7 +1271,7 @@
 
     if(!chatId)
     {
-     window.location.href = "/chat";
+     showChatList(false);
      return;
     }
 
@@ -1174,8 +1310,13 @@
    refresh_interval = setInterval(function()
    {
     if(document.hidden) return;
-    if(document.hasFocus() && messages_area) loadMessages(false);
-   }, 4000);
+
+    if(document.hasFocus() && messages_area)
+    {
+     loadMessages(false);
+     syncReadStatuses();
+    }
+   }, 2000);
 
    window.addEventListener("beforeunload", function()
    {

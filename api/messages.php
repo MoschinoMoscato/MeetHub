@@ -44,6 +44,36 @@
    ['$set' => ["read" => true]]
   );
 
+  // Modalità status_only: restituisce solo gli ID dei messaggi inviati da noi già letti
+  $status_only = ($_GET["status_only"] ?? "") === "1";
+
+  if($status_only)
+  {
+   $read_cursor = $db->messages->find(
+    [
+     "from_user_id" => $current_user_id,
+     "to_user_id"   => $other_id,
+     "read"         => true
+    ],
+    [
+     "projection" => ["_id" => 1]
+    ]
+   );
+
+   $read_ids = [];
+
+   foreach($read_cursor as $r)
+   {
+    $read_ids[] = (string)$r->_id;
+   }
+
+   echo json_encode([
+    "success"  => true,
+    "read_ids" => $read_ids
+   ]);
+   exit;
+  }
+
   $limit = isset($_GET["limit"]) ? (int)$_GET["limit"] : 50;
   if($limit < 1)   $limit = 50;
   if($limit > 100) $limit = 100;

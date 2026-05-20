@@ -171,7 +171,7 @@
   ];
  }
 
- $profiles_cursor = $db->users->find($query, ["sort" => ["created_at" => -1]]);
+ $profiles_cursor = $db->users->find($query, ["sort" => ["created_at" => 1]]);
  $profiles        = iterator_to_array($profiles_cursor, false);
  // Mostriamo solo profili completi; quelli incompleti vengono filtrati a monte
 

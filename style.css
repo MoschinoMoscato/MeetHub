@@ -3012,7 +3012,7 @@ input[type="range"]::-webkit-slider-thumb
  align-self: center;
 }
 
-/* Cornice mini-app */
+/* Cornice mini-app — sempre visibile, nessuna animazione */
 .lp-phone
 {
  position: relative;
@@ -3022,7 +3022,6 @@ input[type="range"]::-webkit-slider-thumb
  border-radius: 28px;
  padding: 1.1rem 1.1rem 1.4rem;
  box-shadow: 0 32px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,75,110,.08);
- animation: lpCardCycle 7s ease-in-out infinite;
 }
 
 /* Intestazione mini-app */
@@ -3051,12 +3050,13 @@ input[type="range"]::-webkit-slider-thumb
  color: var(--text-muted);
 }
 
-/* Card profilo */
+/* Card profilo — entra e esce in loop */
 .lp-pcard
 {
  border-radius: 18px;
  overflow: hidden;
  margin-bottom: 1.1rem;
+ animation: lpProfileCycle 7s ease-in-out infinite;
 }
 
 .lp-pcard-avatar
@@ -3093,7 +3093,7 @@ input[type="range"]::-webkit-slider-thumb
 .lp-pcard-tags
 {
  display: flex;
- gap: .35rem;
+ gap: .4rem;
  flex-wrap: wrap;
 }
 
@@ -3101,7 +3101,7 @@ input[type="range"]::-webkit-slider-thumb
 {
  font-size: .62rem;
  font-weight: 600;
- padding: .18rem .55rem;
+ padding: .2rem .6rem;
  border-radius: 999px;
  background: rgba(255,75,110,.12);
  color: var(--coral);
@@ -3146,17 +3146,17 @@ input[type="range"]::-webkit-slider-thumb
  animation: lpHeartPulse 7s ease-in-out infinite;
 }
 
-/* Badge match */
+/* Badge match — overlay centrato nella cornice */
 .lp-match-badge
 {
  position: absolute;
- bottom: 1.4rem;
+ top: 50%;
  left: 50%;
- font-size: .85rem;
+ font-size: .88rem;
  font-weight: 700;
  color: #fff;
  background: linear-gradient(135deg, var(--coral), var(--gold));
- padding: .5rem 1.3rem;
+ padding: .55rem 1.4rem;
  border-radius: 999px;
  white-space: nowrap;
  box-shadow: 0 4px 20px rgba(255,75,110,.5);
@@ -3167,31 +3167,31 @@ input[type="range"]::-webkit-slider-thumb
 
 /*
  * Sequenza 7 s:
- *  0–0.77s  → phone entra (fade + sale)
- *  0.77–2.94s → profilo visibile
- *  2.94–3.78s → cuore pulsa
- *  3.64–4.34s → badge appare (overlap leggero)
- *  4.34–5.25s → tutto visibile
- *  5.25–6.16s → tutto svanisce
- *  6.16–7s   → pausa prima del ciclo
+ *  0–0.77s    card entra   (fade-in + sale di 20px)
+ *  0.77–2.94s profilo visibile, pausa
+ *  2.94–3.78s cuore pulsa  (scale 1 → 1.18 → 1)
+ *  3.64–4.34s badge appare (overlap leggero con fine pulse)
+ *  4.34–5.25s tutto visibile
+ *  5.25–6.16s card + badge svaniscono
+ *  6.16–7s    pausa — cornice sempre visibile
  */
-@keyframes lpCardCycle
+@keyframes lpProfileCycle
 {
- 0%        { opacity: 0; transform: translateY(24px); }
+ 0%        { opacity: 0; transform: translateY(20px); }
  11%, 75%  { opacity: 1; transform: translateY(0);    }
- 88%, 100% { opacity: 0; transform: translateY(-10px); }
+ 88%, 100% { opacity: 0; transform: translateY(-8px); }
 }
 
 @keyframes lpHeartPulse
 {
  0%, 42%   { transform: scale(1); }
- 48%       { transform: scale(1.4); }
+ 48%       { transform: scale(1.18); }
  54%, 100% { transform: scale(1); }
 }
 
 @keyframes lpMatchBadge
 {
- 0%,  52%  { opacity: 0; transform: translateX(-50%) scale(.85); }
- 62%, 75%  { opacity: 1; transform: translateX(-50%) scale(1);   }
- 88%, 100% { opacity: 0; transform: translateX(-50%) scale(.9);  }
+ 0%,  52%  { opacity: 0; transform: translate(-50%, -50%) scale(.85); }
+ 62%, 75%  { opacity: 1; transform: translate(-50%, -50%) scale(1);   }
+ 88%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(.9);  }
 }

@@ -55,7 +55,7 @@
    }
    catch(Throwable $e)
    {
-    jsonError("Errore durante il salvataggio dell'interazione: " . $e->getMessage(), 500, "DB_ERROR");
+    jsonError("Errore durante il salvataggio dell'interazione", 500, "DB_ERROR");
    }
 
    // ── 3. Controlla like reciproco e crea il match ───────────────────────────
@@ -130,7 +130,7 @@
     }
     catch(Throwable $e)
     {
-     jsonError("Errore durante la creazione del match: " . $e->getMessage(), 500, "MATCH_ERROR");
+     jsonError("Errore durante la creazione del match", 500, "MATCH_ERROR");
     }
    }
 
